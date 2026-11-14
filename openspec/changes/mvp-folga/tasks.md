@@ -32,16 +32,16 @@ Branch: `feat/mvp-folga`. Ordem: P1 → (P2a ∥ P2b) → P3 → P4.
   - cancelar.
 
 ## P2a — Catálogo e detectores
-- [ ] 2a.1 `src/platform/win32.js`: locais conhecidos, com variáveis de ambiente injetáveis nos testes.
-- [ ] 2a.2 Catálogo com as categorias e textos pt-BR do `design.md`, cada item com os 4 campos.
-- [ ] 2a.3 Detectores:
+- [x] 2a.1 `src/platform/win32.js`: locais conhecidos, com variáveis de ambiente injetáveis nos testes.
+- [x] 2a.2 Catálogo com as categorias e textos pt-BR do `design.md`, cada item com os 4 campos.
+- [x] 2a.3 Detectores:
   - dev por marcador, com lastTouched;
   - Steam (vdf/acf);
   - Downloads;
   - dumps e modelos;
   - Docker/WSL guiado.
-- [ ] 2a.4 `POST /api/cleanup/refresh` e `GET /api/cleanup`, com summary, checked e categorias ocultas quando vazias.
-- [ ] 2a.5 Testes:
+- [x] 2a.4 `POST /api/cleanup/refresh` e `GET /api/cleanup`, com summary, checked e categorias ocultas quando vazias.
+- [x] 2a.5 Testes:
   - fixture de projetos (build sem marcador ignorado, node_modules aninhado não entra);
   - parser de vdf/acf;
   - navegador sem Cookies/Login Data;

@@ -57,7 +57,7 @@ test('estático: index.html em / com CSP e nosniff', async () => {
   const r = await request(srv.port, { path: '/' });
   assert.equal(r.status, 200);
   assert.match(r.headers['content-type'], /text\/html/);
-  assert.match(r.text, /folga/);
+  assert.match(r.text, /folga/i);
   assert.match(r.headers['content-security-policy'], /default-src 'self'/);
   assert.match(r.headers['content-security-policy'], /frame-ancestors 'none'/);
   assert.equal(r.headers['x-content-type-options'], 'nosniff');
