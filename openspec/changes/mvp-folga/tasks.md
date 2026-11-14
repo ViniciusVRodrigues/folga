@@ -3,18 +3,18 @@
 Branch: `feat/mvp-folga`. Ordem: P1 → (P2a ∥ P2b) → P3 → P4.
 
 ## P1 — Núcleo: servidor, segurança e varredura
-- [ ] 1.1 `bin/folga.js`:
+- [x] 1.1 `bin/folga.js`:
   - define `UV_THREADPOOL_SIZE=32` antes de qualquer I/O;
   - flags `--port` (padrão 0, porta aleatória) e `--no-open`;
   - abre o navegador em `http://127.0.0.1:<port>/#t=<token>`.
-- [ ] 1.2 `src/server.js`:
+- [x] 1.2 `src/server.js`:
   - escuta em 127.0.0.1;
   - token, Host e Origin;
   - CSP e headers;
   - arquivos estáticos de `web/`;
   - SSE em `/api/events?t=`;
   - erros no formato do contrato.
-- [ ] 1.3 `src/scan/walk.js`:
+- [x] 1.3 `src/scan/walk.js`:
   - varredura com concorrência limitada;
   - sem seguir reparse points;
   - deduplicação de hardlinks;
@@ -22,8 +22,8 @@ Branch: `feat/mvp-folga`. Ordem: P1 → (P2a ∥ P2b) → P3 → P4.
   - prefixo `\\?\`;
   - noAccess;
   - cancelar.
-- [ ] 1.4 `GET /api/drives`, `POST /api/scan`, `POST /api/scan/cancel`, `GET /api/tree`, `GET /api/large-files`.
-- [ ] 1.5 Testes:
+- [x] 1.4 `GET /api/drives`, `POST /api/scan`, `POST /api/scan/cancel`, `GET /api/tree`, `GET /api/large-files`.
+- [x] 1.5 Testes:
   - 403 sem token, com Host errado e com Origin de fora;
   - árvore de fixture com tamanhos exatos;
   - junction não seguida;
