@@ -48,10 +48,10 @@ Branch: `feat/mvp-folga`. Ordem: P1 → (P2a ∥ P2b) → P3 → P4.
   - safeNow.
 
 ## P2b — UI
-- [ ] 2b.1 `web/`: shell, tema, i18n pt-BR, cliente da API com token e SSE.
-- [ ] 2b.2 Telas: Resumo, O que pesa (treemap e lista), Categoria, Arquivos grandes, Varrer outra pasta.
-- [ ] 2b.3 SelectionBar, modal de confirmação e resumo da limpeza.
-- [ ] 2b.4 `web/lib/*` puro e testado: treemap squarified, formatação de bytes e datas, regras de seleção e pré-seleção.
+- [x] 2b.1 `web/`: shell, tema, i18n pt-BR, cliente da API com token e SSE.
+- [x] 2b.2 Telas: Resumo, O que pesa (treemap e lista), Categoria, Arquivos grandes, Varrer outra pasta.
+- [x] 2b.3 SelectionBar, modal de confirmação e resumo da limpeza.
+- [x] 2b.4 `web/lib/*` puro e testado: treemap squarified, formatação de bytes e datas, regras de seleção e pré-seleção.
 
 ## P3 — Limpeza
 - [ ] 3.1 `src/clean/guard.js`: lista de protegidos, raiz permitida, reparse em ancestrais.
