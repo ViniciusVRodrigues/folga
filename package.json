@@ -3,16 +3,42 @@
   "version": "0.1.0",
   "description": "Veja o que pesa no disco do Windows e libere espaço com segurança: caches, Temp, shaders, lixo de dev e mais. Tudo local, nada apaga sem confirmação.",
   "type": "module",
-  "bin": { "folga": "bin/folga.js" },
+  "bin": {
+    "folga": "bin/folga.js"
+  },
   "main": "src/server.js",
-  "files": ["bin", "src", "web", "README.md", "LICENSE"],
+  "files": [
+    "bin",
+    "src",
+    "web",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "start": "node bin/folga.js",
     "test": "node --test --test-reporter=dot \"test/**/*.test.js\""
   },
-  "engines": { "node": ">=20" },
-  "os": ["win32"],
-  "keywords": ["disk", "storage", "cleanup", "windows", "treemap", "node_modules", "cache"],
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "win32"
+  ],
+  "keywords": [
+    "disk",
+    "storage",
+    "cleanup",
+    "windows",
+    "treemap",
+    "node_modules",
+    "cache"
+  ],
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/ViniciusVRodrigues/folga.git" }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ViniciusVRodrigues/folga.git"
+  },
+  "dependencies": {
+    "trash": "^10.1.1"
+  }
 }
