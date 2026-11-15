@@ -14,4 +14,4 @@
 ## 3. Entrega
 - [x] 3.1 Medição antes × depois no C: e em `C:\Windows`
 - [x] 3.2 verificador, qa-senior e ux-ui (validação): aprovados; sugestões do QA aplicadas (PowerShell pelo caminho completo, leitor sai se a pasta temporária sumir)
-- [ ] 3.3 PR, merge, arquivar a change, quadro
+- [x] 3.3 PR, merge, arquivar a change, quadro
