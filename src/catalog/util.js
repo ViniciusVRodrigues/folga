@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { toLongPath, pathKey } from '../scan/walk.js';
+import { toLongPath, pathKey, scanTree } from '../scan/walk.js';
 
 const CLUSTER = 4096n;
 
@@ -58,53 +58,39 @@ export async function listFiles(dir, re) {
   return ents.filter((e) => e.isFile() && re.test(e.name)).map((e) => path.join(dir, e.name));
 }
 
+/** Limita quantas pastas são medidas ao mesmo tempo (cada uma já usa 64 leituras em paralelo). */
+const measureSlots = createLimiter(4);
+
 /**
  * Soma o tamanho alocado (clusters de 4 KiB) de arquivos e pastas, sem seguir
- * links nem junctions. Devolve { size, logical, files, unreadable, newest }.
+ * links nem junctions. Pastas usam o `scanTree` da varredura, que tem fila de
+ * trabalho própria (o Promise.all recursivo anterior levava ~7 min nos
+ * node_modules de C:\GitHub). Devolve { size, logical, files, unreadable, newest, partial }.
  */
 export async function measure(paths, { budgetMs } = {}) {
-  const deadline = budgetMs ? Date.now() + budgetMs : Infinity;
   const total = { size: 0, logical: 0, files: 0, unreadable: 0, newest: 0, partial: false };
-  const seen = new Set();
-  async function lst(p) {
-    try { return await limit(() => fs.promises.lstat(toLongPath(p), { bigint: true })); } catch (e) { return { err: e }; }
-  }
-  function addFile(st) {
-    if (st.nlink > 1n) {
-      const k = `${st.dev}:${st.ino}`;
-      if (seen.has(k)) return;
-      seen.add(k);
-    }
-    total.logical += Number(st.size);
-    total.size += Number(((st.size + CLUSTER - 1n) / CLUSTER) * CLUSTER);
-    total.files++;
-    total.newest = Math.max(total.newest, Number(st.mtimeMs));
-  }
-  async function dir(p) {
-    if (Date.now() > deadline) { total.partial = true; return; }
-    let ents;
-    try { ents = await limit(() => fs.promises.readdir(toLongPath(p), { withFileTypes: true })); } catch { total.unreadable++; return; }
-    const subs = [];
-    const files = [];
-    for (const e of ents) {
-      if (e.isSymbolicLink()) continue;
-      if (e.isDirectory()) subs.push(path.join(p, e.name));
-      else files.push(path.join(p, e.name));
-    }
-    await Promise.all([
-      ...subs.map(dir),
-      ...files.map(async (f) => {
-        const st = await lst(f);
-        if (st.err) { total.unreadable++; return; }
-        if (!st.isSymbolicLink() && !st.isDirectory()) addFile(st);
-      }),
-    ]);
-  }
+  const signal = budgetMs ? AbortSignal.timeout(budgetMs) : undefined;
   await Promise.all(paths.map(async (p) => {
-    const st = await lst(p);
-    if (st.err) { if (st.err.code !== 'ENOENT' && st.err.code !== 'ENOTDIR') total.unreadable++; return; }
+    let st;
+    try { st = await fs.promises.lstat(toLongPath(p), { bigint: true }); } catch (e) {
+      if (e.code !== 'ENOENT' && e.code !== 'ENOTDIR') total.unreadable++;
+      return;
+    }
     if (st.isSymbolicLink()) return;
-    if (st.isDirectory()) await dir(p); else addFile(st);
+    if (!st.isDirectory()) {
+      total.logical += Number(st.size);
+      total.size += Number(((st.size + CLUSTER - 1n) / CLUSTER) * CLUSTER);
+      total.files++;
+      total.newest = Math.max(total.newest, Number(st.mtimeMs));
+      return;
+    }
+    const r = await measureSlots(() => scanTree(p, { signal, largeFileMin: Infinity }));
+    total.size += r.root.alloc;
+    total.logical += r.root.size;
+    total.files += r.files;
+    total.unreadable += r.unreadable;
+    total.newest = Math.max(total.newest, r.root.mtime);
+    if (r.partial) total.partial = true;
   }));
   return total;
 }

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { walkLite, measure, dynId, makeItem, lstatSafe, readdirSafe, pathKey } from './util.js';
+import { toLongPath } from '../scan/walk.js';
 
 const DAY = 86400000;
 
@@ -41,15 +42,19 @@ function hasMarker(names, markers) {
 export async function lastTouched(root, { maxDepth = 3, maxEntries = 600 } = {}) {
   let newest = 0;
   let budget = maxEntries;
+  // Lê sem o limitador compartilhado: os passos aqui são sequenciais e ficariam
+  // atrás de milhões de lstat da medição na fila FIFO (inanição).
+  const rd = (p) => fs.promises.readdir(toLongPath(p), { withFileTypes: true }).catch(() => null);
+  const ls = (p) => fs.promises.lstat(toLongPath(p)).catch(() => null);
   async function go(dir, depth) {
-    const ents = await readdirSafe(dir);
+    const ents = await rd(dir);
     if (!ents) return;
     const subs = [];
     for (const e of ents) {
       if (budget <= 0) return;
       if (e.isSymbolicLink() || SKIP_ALWAYS.has(e.name) || ARTIFACTS[e.name]) continue;
       budget--;
-      const st = await lstatSafe(path.join(dir, e.name));
+      const st = await ls(path.join(dir, e.name));
       if (st) newest = Math.max(newest, st.mtimeMs);
       if (e.isDirectory() && depth < maxDepth) subs.push(path.join(dir, e.name));
     }
@@ -58,10 +63,10 @@ export async function lastTouched(root, { maxDepth = 3, maxEntries = 600 } = {})
   await go(root, 1);
   // atividade do git (commit, checkout) sem entrar na pasta inteira
   for (const f of ['index', 'HEAD']) {
-    const st = await lstatSafe(path.join(root, '.git', f));
+    const st = await ls(path.join(root, '.git', f));
     if (st) newest = Math.max(newest, st.mtimeMs);
   }
-  if (!newest) { const st = await lstatSafe(root); newest = st ? st.mtimeMs : 0; }
+  if (!newest) { const st = await ls(root); newest = st ? st.mtimeMs : 0; }
   return newest;
 }
 

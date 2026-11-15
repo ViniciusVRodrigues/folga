@@ -38,14 +38,14 @@ export function knownLocations(env = process.env) {
   const systemDrive = pick(env, 'SystemDrive') || 'C:';
   const localAppData = pick(env, 'LOCALAPPDATA') || path.join(home, 'AppData', 'Local');
   const appData = pick(env, 'APPDATA') || path.join(home, 'AppData', 'Roaming');
-  const windir = pick(env, 'WINDIR', 'windir', 'SystemRoot') || systemDrive + '\Windows';
-  const programData = pick(env, 'ProgramData') || systemDrive + '\ProgramData';
-  const programFiles = pick(env, 'ProgramFiles') || systemDrive + '\Program Files';
-  const programFilesX86 = pick(env, 'ProgramFiles(x86)') || systemDrive + '\Program Files (x86)';
+  const windir = pick(env, 'WINDIR', 'windir', 'SystemRoot') || systemDrive + '\\Windows';
+  const programData = pick(env, 'ProgramData') || systemDrive + '\\ProgramData';
+  const programFiles = pick(env, 'ProgramFiles') || systemDrive + '\\Program Files';
+  const programFilesX86 = pick(env, 'ProgramFiles(x86)') || systemDrive + '\\Program Files (x86)';
   const temp = pick(env, 'TEMP', 'TMP') || path.join(localAppData, 'Temp');
   return {
     home, systemDrive, localAppData, appData, windir, programData, programFiles, programFilesX86, temp,
     downloads: path.join(home, 'Downloads'),
-    recycleBin: systemDrive + '\$Recycle.Bin',
+    recycleBin: systemDrive + '\\$Recycle.Bin',
   };
 }

@@ -54,20 +54,20 @@ Branch: `feat/mvp-folga`. Ordem: P1 → (P2a ∥ P2b) → P3 → P4.
 - [x] 2b.4 `web/lib/*` puro e testado: treemap squarified, formatação de bytes e datas, regras de seleção e pré-seleção.
 
 ## P3 — Limpeza
-- [ ] 3.1 `src/clean/guard.js`: lista de protegidos, raiz permitida, reparse em ancestrais.
-- [ ] 3.2 `src/clean/remove.js`: exclusão definitiva segura, sem seguir junctions.
-- [ ] 3.3 Lixeira com `trash` e checagem de cota/NukeOnDelete; falha nunca vira exclusão definitiva.
-- [ ] 3.4 Comandos oficiais por `execFile` (npm, pnpm, pip, uv, dotnet, yarn, go).
-- [ ] 3.5 `POST /api/clean`, `GET /api/clean/:id`, `POST /api/recycle-bin/empty`, `POST /api/open`.
-- [ ] 3.6 Testes:
+- [x] 3.1 `src/clean/guard.js`: lista de protegidos, raiz permitida, reparse em ancestrais.
+- [x] 3.2 `src/clean/remove.js`: exclusão definitiva segura, sem seguir junctions.
+- [x] 3.3 Lixeira com `trash` e checagem de cota/NukeOnDelete; falha nunca vira exclusão definitiva.
+- [x] 3.4 Comandos oficiais por `execFile` (npm, pnpm, pip, uv, dotnet, yarn, go).
+- [x] 3.5 `POST /api/clean`, `GET /api/clean/:id`, `POST /api/recycle-bin/empty`, `POST /api/open`.
+- [x] 3.6 Testes:
   - guarda (protegidos, junction);
   - modo delete recusado em item não regenerável;
   - STALE_ITEM;
   - item de teste vai para a Lixeira.
 
 ## P4 — Admin/UAC
-- [ ] 4.1 Gerador de script fixo, `GET /api/admin-script` e execução por `-EncodedCommand` com `Start-Process -Verb RunAs`; recusa do UAC leva a `admin-declined`.
-- [ ] 4.2 Teste do hash do script exibido contra o executado.
+- [x] 4.1 Gerador de script fixo, `GET /api/admin-script` e execução por `-EncodedCommand` com `Start-Process -Verb RunAs`; recusa do UAC leva a `admin-declined`.
+- [x] 4.2 Teste do hash do script exibido contra o executado.
 
 ## Entrega
 - [ ] Regressão completa (verificador).

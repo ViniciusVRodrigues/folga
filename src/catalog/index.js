@@ -119,7 +119,7 @@ export function buildResponse(result, { drive = null, scanning = false } = {}) {
 export function publicItem(it) {
   const out = {
     id: it.id, name: it.name, whatItIs: it.whatItIs, afterCleaning: it.afterCleaning,
-    size: it.size, risk: it.risk, action: it.action, needsAdmin: it.needsAdmin, preselect: it.preselect,
+    size: it.size, risk: it.risk, guide: it.guide, game: it.game, action: it.action, needsAdmin: it.needsAdmin, preselect: it.preselect,
     paths: it.paths, lastUsed: it.lastUsed, permanent: it.permanent, regenerable: it.regenerable,
     inUseBy: it.inUseBy, guide: it.guide, unreadable: it.unreadable,
   };
