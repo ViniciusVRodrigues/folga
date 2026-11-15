@@ -58,3 +58,23 @@ test('rota exige token', async () => {
   const r = await request(srv.port, { path: '/api/cleanup' });
   assert.equal(r.status, 403);
 });
+
+test('cleanup-done traz ok:true, progress traz pending e status diz se roda', async () => {
+  const done = events.filter(([e]) => e === 'cleanup-done').at(-1);
+  assert.deepEqual(done[1], { ok: true });
+  const prog = events.find(([e]) => e === 'cleanup-progress');
+  assert.ok(Array.isArray(prog[1].pending));
+  const st = await api('/api/cleanup/status');
+  assert.equal(st.status, 200);
+  assert.equal(st.json.running, false);
+  assert.ok(st.json.generatedAt);
+});
+
+test('detector que estoura o tempo devolve o que mediu e não trava o resto', async () => {
+  const { runCatalog } = await import('../src/catalog/index.js');
+  const t0 = Date.now();
+  const r = await runCatalog({ env, devRoots: [], modelDirs: [], detectorTimeoutMs: 1 });
+  assert.ok(Date.now() - t0 < 8000);
+  assert.ok(Array.isArray(r.items));
+  assert.ok(Array.isArray(r.timedOut));
+});

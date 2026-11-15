@@ -239,6 +239,12 @@ export function createMockApi({ delay = 120, adminDeclined = false } = {}) {
       }, 250);
       return wait({ scanId: id });
     },
+    async scanStatus() {
+      if (scanTimer) return wait({ state: 'running', root: scanRootPath, progress: null, partial: false });
+      if (scanRoot) return wait({ state: 'done', root: scanRootPath, progress: null, partial: scanPartial });
+      return wait({ state: 'idle', root: null, progress: null, partial: false });
+    },
+    async cleanupStatus() { return wait({ running: measuring, progress: null, generatedAt: null, error: null }); },
     async cancelScan() { if (scanTimer) endScan(true); return { ok: true }; },
     async tree(path, limit = 200) {
       if (!scanRoot) throw new ApiError('NO_SCAN', 'Faça uma varredura primeiro.', 409);
@@ -275,7 +281,7 @@ export function createMockApi({ delay = 120, adminDeclined = false } = {}) {
       measuring = true;
       const total = 14;
       for (let i = 1; i <= total; i++) setTimeout(() => emit('cleanup-progress', { category: 'dev', done: i, total }), i * 120);
-      setTimeout(() => { measuring = false; measured = true; emit('cleanup-done', {}); }, total * 120 + 100);
+      setTimeout(() => { measuring = false; measured = true; emit('cleanup-done', { ok: true }); }, total * 120 + 100);
       return wait({});
     },
     async cleanup() {

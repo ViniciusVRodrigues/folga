@@ -30,16 +30,25 @@ export function register(router, ctx) {
     scanTree(scan.root, {
       signal: controller.signal,
       largeFileMin: ctx.largeFileMin,
-      onProgress: (pr) => events.broadcast('scan-progress', { scanId, ...pr }),
+      onProgress: (pr) => { scan.progress = pr; events.broadcast('scan-progress', { scanId, ...pr }); },
     }).then((result) => {
       scan.result = result;
+      scan.progress = { files: result.files, dirs: result.dirs, bytes: result.bytes, unreadable: result.unreadable, elapsedMs: result.elapsedMs };
       scan.running = false;
       events.broadcast('scan-done', { scanId, partial: result.partial, files: result.files, dirs: result.dirs, bytes: result.bytes, unreadable: result.unreadable, elapsedMs: result.elapsedMs });
     }).catch(() => {
       scan.running = false;
+      scan.failed = true;
       events.broadcast('scan-done', { scanId, partial: true, files: 0, dirs: 0, bytes: 0, unreadable: 0, elapsedMs: 0 });
     });
     return reply(202, { scanId });
+  });
+
+  router.get('/api/scan/status', async () => {
+    const scan = state.scan;
+    if (!scan) return { state: 'idle', root: null, progress: null, partial: false };
+    const st = scan.running ? 'running' : scan.result ? 'done' : 'idle';
+    return { state: st, root: scan.root, progress: scan.progress || null, partial: !!(scan.result?.partial) };
   });
 
   router.post('/api/scan/cancel', async () => {

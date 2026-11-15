@@ -12,3 +12,8 @@ test('fração da medição', () => {
 test('texto "Medindo… N de M" existe', () => {
   assert.match(messages['summary.measuring'], /\{done\}.*\{total\}/);
 });
+
+import { measureText as mt } from '../../web/views/parts.js';
+test('measureText mostra o que falta medir', () => {
+  assert.match(mt({ done: 3, total: 9, pending: ['Steam', 'Docker e WSL'] }), /falta: Steam, Docker e WSL/);
+});

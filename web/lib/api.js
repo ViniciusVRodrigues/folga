@@ -35,6 +35,8 @@ export function createApi(token) {
     mock: false,
     drives: () => call('GET', '/api/drives'),
     scan: (path) => call('POST', '/api/scan', { path }),
+    scanStatus: () => call('GET', '/api/scan/status'),
+    cleanupStatus: () => call('GET', '/api/cleanup/status'),
     cancelScan: () => call('POST', '/api/scan/cancel', {}),
     tree: (path, limit = 200) => call('GET', '/api/tree?' + q({ path, limit })),
     largeFiles: (min = 524288000) => call('GET', '/api/large-files?' + q({ min })),

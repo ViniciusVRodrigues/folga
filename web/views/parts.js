@@ -116,5 +116,7 @@ export function measureBanner(ctx) {
 }
 
 export function measureText(p) {
-  return p && p.total ? t('summary.measuring', { done: p.done, total: p.total }) : t('summary.loading');
+  if (!(p && p.total)) return t('summary.loading');
+  const pend = (p.pending || []).slice(0, 3).join(', ');
+  return pend ? t('summary.measuringPending', { done: p.done, total: p.total, pending: pend }) : t('summary.measuring', { done: p.done, total: p.total });
 }

@@ -1,9 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { toLongPath, pathKey, scanTree } from '../scan/walk.js';
 
 const CLUSTER = 4096n;
+
+/** Sinal do detector em andamento: `measure` o combina com o próprio orçamento. */
+export const detectorSignal = new AsyncLocalStorage();
 
 export function createLimiter(n) {
   let active = 0;
@@ -69,7 +73,9 @@ const measureSlots = createLimiter(4);
  */
 export async function measure(paths, { budgetMs } = {}) {
   const total = { size: 0, logical: 0, files: 0, unreadable: 0, newest: 0, partial: false };
-  const signal = budgetMs ? AbortSignal.timeout(budgetMs) : undefined;
+  const outer = detectorSignal.getStore();
+  const own = budgetMs ? AbortSignal.timeout(budgetMs) : undefined;
+  const signal = outer && own ? AbortSignal.any([outer, own]) : (outer || own);
   await Promise.all(paths.map(async (p) => {
     let st;
     try { st = await fs.promises.lstat(toLongPath(p), { bigint: true }); } catch (e) {

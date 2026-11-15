@@ -106,6 +106,7 @@ ctx.render = ({ focus = false } = {}) => {
 
 function onRoute() {
   Object.assign(ctx.state, parseRoute());
+  if (ctx.state.route === 'map') ctx.syncScan();
   ctx.render({ focus: true });
 }
 
@@ -208,18 +209,47 @@ ctx.refreshCleanup = async (remeasure = false, silent = false) => {
   paintCleanup();
 };
 
-async function finishMeasure() {
+async function finishMeasure(failed = false) {
   if (!ctx.state.measure) return;
   stopMeasurePoll();
   ctx.state.measure = null;
   await loadCleanup(false);
-  if (!ctx.state.cleanup) ctx.state.cleanupError = true;
+  if (!ctx.state.cleanup || failed) ctx.state.cleanupError = true;
   paintCleanup();
 }
 
 ctx.refreshDrives = async () => {
   try { ctx.state.drives = await api.drives(); } catch { /* sem unidades */ }
   if (['summary', 'scan', 'map'].includes(ctx.state.route)) ctx.render();
+};
+
+// Depois de um reload: o servidor pode estar medindo o catálogo ou ter uma varredura pronta.
+async function resumeServerState() {
+  try {
+    const m = await api.cleanupStatus();
+    if (m.running && !ctx.state.measure) {
+      ctx.state.measure = { done: m.progress?.done || 0, total: m.progress?.total || 0, pending: m.progress?.pending || [] };
+      stopMeasurePoll();
+      measurePoll = setInterval(async () => {
+        const st = await api.cleanupStatus().catch(() => null);
+        if (st && !st.running) finishMeasure(!!st.error);
+      }, 5000);
+      paintCleanup();
+    }
+  } catch { /* servidor antigo: segue sem */ }
+}
+
+ctx.syncScan = async () => {
+  if (ctx.state.scan.status !== 'idle') return;
+  try {
+    const st = await api.scanStatus();
+    if (st.state === 'idle' || ctx.state.scan.status !== 'idle') return;
+    ctx.state.scan = {
+      status: st.state, path: st.root, rootPath: st.root, progress: st.progress, partial: !!st.partial,
+      unreadable: st.progress?.unreadable || 0, error: null,
+    };
+    if (ctx.state.route === 'map') ctx.render();
+  } catch { /* sem estado de varredura */ }
 };
 
 // ---------- varredura ----------
@@ -299,8 +329,13 @@ function onEvent(name, d) {
     ctx.announce(t(d.partial ? 'scan.donePartial' : 'scan.done'));
     if (ctx.state.route === 'map') ctx.render();
   }
-  if (name === 'cleanup-progress' && ctx.state.measure) { ctx.state.measure = { done: d.done, total: d.total }; ctx.updateMeasure(); }
-  if (name === 'cleanup-done') { if (ctx.state.measure) finishMeasure(); else ctx.refreshCleanup(false, true); }
+  if (name === 'cleanup-progress' && ctx.state.measure) { ctx.state.measure = { done: d.done, total: d.total, pending: d.pending || [] }; ctx.updateMeasure(); }
+  if (name === 'cleanup-done') {
+    const failed = d && d.ok === false;
+    if (failed) toast(t('error.measureFailed', { msg: d.error || '' }));
+    if (ctx.state.measure) finishMeasure(failed);
+    else ctx.refreshCleanup(false, true);
+  }
   ctx.view.onEvent?.(name, d);
 }
 
@@ -319,8 +354,9 @@ function start() {
   ctx.render();
   ctx.updateSelBar();
   ctx.refreshDrives();
+  ctx.syncScan();
   // mostra o que o servidor já tem (se tiver) e pede uma medição nova por cima
-  ctx.refreshCleanup(false, true).then(() => ctx.refreshCleanup(true));
+  resumeServerState().then(() => ctx.refreshCleanup(false, true)).then(() => ctx.refreshCleanup(true));
 }
 
 start();

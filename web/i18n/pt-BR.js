@@ -34,6 +34,8 @@ export const messages = {
   'summary.title': 'Resumo',
   'summary.loading': 'Medindo os locais conhecidos…',
   'summary.measuring': 'Medindo… {done} de {total}',
+  'summary.measuringPending': 'Medindo… {done} de {total} (falta: {pending})',
+  'error.measureFailed': 'A medição falhou. {msg}',
   'summary.measuringHint': 'Pode levar alguns minutos. Você já pode usar o resto do app.',
   'summary.low': '{drive} está quase cheio: {pct} livre.',
   'summary.freeOf': '{free} livres de {total}.',

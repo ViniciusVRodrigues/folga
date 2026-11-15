@@ -85,3 +85,23 @@ test('409 numa segunda varredura simultânea; cancelar devolve scan-done', async
   assert.deepEqual(c.json, { ok: true });
   await waitFor(() => done.length > n);
 });
+
+test('GET /api/scan/status reflete idle, running e done', async () => {
+  const s0 = await api('/api/scan/status');
+  assert.equal(s0.status, 200);
+  // já houve varreduras nos testes anteriores: o estado é 'done' (última foi cancelada => partial)
+  assert.ok(['done', 'idle'].includes(s0.json.state));
+  const n = done.length;
+  const a = await api('/api/scan', { method: 'POST', body: { path: os.tmpdir() } });
+  assert.equal(a.status, 202);
+  const s1 = await api('/api/scan/status');
+  assert.equal(s1.json.state, 'running');
+  assert.equal(s1.json.root, path.resolve(os.tmpdir()));
+  await api('/api/scan/cancel', { method: 'POST', body: {} });
+  await waitFor(() => done.length > n);
+  const s2 = await api('/api/scan/status');
+  assert.equal(s2.json.state, 'done');
+  assert.equal(s2.json.partial, true);
+  assert.equal(s2.json.root, path.resolve(os.tmpdir()));
+  assert.ok(s2.json.progress);
+});

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { knownLocations as realLocations } from '../platform/index.js';
 import { knownLocations as winLocations } from '../platform/win32.js';
 import { CATEGORIES, STATIC_DEFS } from './defs.js';
-import { measure, makeItem, isDir, pathKey } from './util.js';
+import { measure, makeItem, isDir, pathKey, detectorSignal } from './util.js';
 import { scanDevRoots, projectItems, fileItems, scanFiles } from './dev.js';
 import {
   browserItems, BROWSER_GROUPS, steamLibrariesOf, steamGames, steamShaderItem, downloadItems, vhdxItems,
@@ -70,14 +70,29 @@ export async function runCatalog(opts = {}) {
   });
 
   const total = detectors.length;
+  const timeoutMs = opts.detectorTimeoutMs ?? 90000;
+  const pending = new Set(detectors);
+  const pendingGroups = () => [...new Set([...pending].flatMap((d) => d.groups))];
   let done = 0;
   const all = [];
+  const timedOut = [];
+  opts.onProgress?.({ category: null, done, total, pending: pendingGroups() });
   await Promise.all(detectors.map(async (d) => {
-    let items = [];
-    try { items = await d.run(); } catch { items = []; }
+    const ctl = new AbortController();
+    const run = detectorSignal.run(ctl.signal, () => d.run()).catch(() => []);
+    const wait = (ms, v) => new Promise((r) => { const tm = setTimeout(() => r(v), ms); tm.unref?.(); });
+    const LIMIT = Symbol('limit');
+    let items = await Promise.race([run, wait(timeoutMs, LIMIT)]);
+    if (items === LIMIT) {
+      // estourou: avisa o detector (ele devolve o que mediu) e dá uma folga curta; quem ignora o sinal é cortado
+      ctl.abort();
+      timedOut.push(...d.groups);
+      items = await Promise.race([run, wait(Math.min(5000, timeoutMs), [])]);
+    }
     all.push(...items);
+    pending.delete(d);
     done++;
-    opts.onProgress?.({ category: d.category, done, total });
+    opts.onProgress?.({ category: d.category, done, total, pending: pendingGroups() });
   }));
 
   const checked = [];
@@ -87,7 +102,7 @@ export async function runCatalog(opts = {}) {
   const byId = new Map();
   for (const it of all) if (!byId.has(it.id)) byId.set(it.id, it);
 
-  return { generatedAt: new Date(now).toISOString(), items: [...byId.values()], checked };
+  return { generatedAt: new Date(now).toISOString(), items: [...byId.values()], checked, timedOut: [...new Set(timedOut)] };
 }
 
 const isSafe = (it) => it.risk === 'low' && it.action === 'clean' && !it.needsAdmin;
