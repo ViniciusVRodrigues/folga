@@ -122,3 +122,35 @@ test('junção de pasta não é seguida', { skip: !isWin }, async () => {
     assert.equal(r.files, 1);
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
 });
+
+test('admin cancelado com o UAC aberto vale como recusa', async () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'folga-fast-'));
+  try {
+    const ac = new AbortController();
+    const pending = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], { stdio: ['ignore', 'ignore', 'pipe'] });
+    setTimeout(() => ac.abort(), 300);
+    const t0 = Date.now();
+    const r = await scanFast(base, { admin: true, signal: ac.signal, start: pending });
+    assert.equal(r.declined, true);
+    assert.ok(Date.now() - t0 < 5000);
+  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('o leitor não escreve num arquivo de saída que é hardlink', { skip: !isWin }, async () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'folga-fast-'));
+  try {
+    const victim = path.join(base, 'vitima.txt');
+    fs.writeFileSync(victim, 'original');
+    let code = null;
+    const linked = (s) => {
+      const out = /'([^']*out\.tsv)'/.exec(s)[1];
+      fs.rmSync(out); fs.linkSync(victim, out);
+      const c = ps(s);
+      c.on('exit', (x) => { code = x; });
+      return c;
+    };
+    await assert.rejects(scanFast(path.join(base), { start: linked }), FastUnavailable);
+    assert.equal(fs.readFileSync(victim, 'utf8'), 'original');
+    assert.notEqual(code, 0);
+  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});

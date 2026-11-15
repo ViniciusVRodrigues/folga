@@ -14,8 +14,8 @@ No uso real (15/11), a varredura do C: (~1 TB, 2,4 milhões de arquivos) levou m
 - **Leitura como administrador:** quando sobram pastas sem acesso, o mapa oferece "Ler como administrador". Só o leitor sobe pelo UAC, com o privilégio de backup, e só lê. O servidor continua sem elevação.
 
 ## Números (este PC, C: de 953 GB)
-- Antes: em 300 s o walker em JS não terminou (1,96 mi de arquivos, 7.609 entradas/s).
-- Depois: C: inteiro em 44,5 s (2,44 mi de arquivos, 425 mil pastas, 64.309 entradas/s), 8,5× mais rápido. Detalhes em `design.md`.
+- Antes: o walker em JS não termina o C: em 300 s (1.438 a 7.609 entradas/s, conforme o cache).
+- Depois: C: inteiro em 45 a 81 s (2,44 mi de arquivos, 425 mil pastas, 35 a 64 mil entradas/s). Detalhes em `design.md`.
 
 ## Fora do escopo
 - Leitura direta da MFT: com o leitor novo, o C: inteiro leva ~40 s. A MFT exigiria admin sempre e um parser de formato cru, risco que não compensa agora.

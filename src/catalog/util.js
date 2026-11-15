@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { toLongPath, pathKey, scanTree } from '../scan/walk.js';
+import { toLongPath, pathKey, walkJs } from '../scan/walk.js';
 
 const CLUSTER = 4096n;
 
@@ -67,9 +67,10 @@ const measureSlots = createLimiter(4);
 
 /**
  * Soma o tamanho alocado (clusters de 4 KiB) de arquivos e pastas, sem seguir
- * links nem junctions. Pastas usam o `scanTree` da varredura, que tem fila de
+ * links nem junctions. Pastas usam o walker em JS da varredura (`walkJs`), que tem fila de
  * trabalho própria (o Promise.all recursivo anterior levava ~7 min nos
- * node_modules de C:\GitHub). Devolve { size, logical, files, unreadable, newest, partial }.
+ * node_modules de C:\GitHub). Não usa o leitor rápido, que custa segundos para
+ * subir o PowerShell e compilar a cada pasta. Devolve { size, logical, files, unreadable, newest, partial }.
  */
 export async function measure(paths, { budgetMs } = {}) {
   const total = { size: 0, logical: 0, files: 0, unreadable: 0, newest: 0, partial: false };
@@ -90,7 +91,7 @@ export async function measure(paths, { budgetMs } = {}) {
       total.newest = Math.max(total.newest, Number(st.mtimeMs));
       return;
     }
-    const r = await measureSlots(() => scanTree(p, { signal, largeFileMin: Infinity }));
+    const r = await measureSlots(() => walkJs(p, { signal, largeFileMin: Infinity }));
     total.size += r.root.alloc;
     total.logical += r.root.size;
     total.files += r.files;

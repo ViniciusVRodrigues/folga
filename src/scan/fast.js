@@ -50,7 +50,13 @@ export function buildElevatedWrapper(inner) {
     'try {',
     `  $p = Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-EncodedCommand','${encodeScript(inner)}'`,
     '  exit $p.ExitCode',
-    `} catch { if ($_.Exception.NativeErrorCode -eq ${ERROR_CANCELLED}) { exit ${ERROR_CANCELLED} } else { [Console]::Error.WriteLine($_.Exception.Message); exit 1 } }`,
+    // UAC recusado: o PowerShell 5.1 põe o 1223 na exceção interna ou só na mensagem (localizada)
+    '} catch {',
+    '  $e = $_.Exception; $m = $e.Message',
+    `  while ($e) { if ($e.NativeErrorCode -eq ${ERROR_CANCELLED}) { exit ${ERROR_CANCELLED} }; $e = $e.InnerException }`,
+    `  if ($m -match 'cancel') { exit ${ERROR_CANCELLED} }`,
+    '  [Console]::Error.WriteLine($m); exit 1',
+    '}',
   ].join('\n');
 }
 
@@ -152,6 +158,12 @@ export async function scanFast(root, { signal, onProgress, largeFileMin = 500 * 
   await fs.promises.writeFile(out, '');
   const builder = createTreeBuilder(rootPath, { largeFileMin });
   const { state } = builder;
+  // cancelado enquanto preparava: não sobe o PowerShell
+  if (signal?.aborted) {
+    await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
+    if (admin) return { declined: true, admin: true, backend: 'fast', partial: true, elapsedMs: Date.now() - t0 };
+    return { ...builder.result(), elapsedMs: Date.now() - t0, backend: 'fast', admin, declined: false, partial: true };
+  }
 
   const inner = buildReaderScript({ root: rootPath, out, cancel, largeFileMin, threads, admin });
   const child = start(admin ? buildElevatedWrapper(inner) : inner);
@@ -167,8 +179,11 @@ export async function scanFast(root, { signal, onProgress, largeFileMin = 500 * 
   const onAbort = () => {
     aborted = true;
     fs.promises.writeFile(cancel, '').catch(() => {});
-    // sem elevação, garante o fim em menos de 1 s mesmo se o leitor ainda estiver compilando
+    // sem elevação, garante o fim em menos de 1 s mesmo se o leitor ainda estiver compilando.
+    // No admin, antes da primeira pasta (UAC ainda aberto) encerra o wrapper; o leitor elevado,
+    // se chegar a abrir, não acha mais a pasta temporária e sai sem ler nada.
     if (!admin) setTimeout(() => { if (exitCode === null) child.kill(); }, state.sawDir ? 600 : 0).unref?.();
+    else if (!state.sawDir) child.kill();
   };
   signal?.addEventListener('abort', onAbort, { once: true });
   if (signal?.aborted) onAbort();
@@ -205,7 +220,8 @@ export async function scanFast(root, { signal, onProgress, largeFileMin = 500 * 
     fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 
-  if (admin && exitCode === ERROR_CANCELLED && !state.sawDir) {
+  // UAC recusado, ou cancelado antes de ler qualquer pasta: a varredura anterior continua valendo
+  if (admin && !state.sawDir && (exitCode === ERROR_CANCELLED || aborted || state.ended === 'cancel')) {
     return { declined: true, admin: true, backend: 'fast', partial: true, elapsedMs: Date.now() - t0 };
   }
   if (!state.sawDir && (aborted || state.ended === 'cancel')) {

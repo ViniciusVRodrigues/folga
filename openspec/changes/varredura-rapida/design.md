@@ -22,7 +22,14 @@
 ## Medição (este PC: Windows 11, C: NTFS de 953 GB, SSD NVMe)
 | Caso | Antes (walker em JS) | Depois (leitor rápido) |
 | --- | --- | --- |
-| C: inteiro | parcial em 300 s: 1,96 mi arquivos, 350 mil pastas, 7.609 entradas/s | completo em 44,5 s: 2,44 mi arquivos, 425 mil pastas, 931 GB, 430 sem acesso, 64.309 entradas/s (8,5×) |
-| `C:\Windows` (cache quente, um depois do outro) | 43,6 s | 23 s pelo Node (16 s só o leitor) |
+| C: inteiro, 1ª rodada | parada em 300 s sem terminar: 1,96 mi arquivos, 7.609 entradas/s (cache quente, outros processos rodando) | completo em 44,5 s: 2,44 mi arquivos, 425 mil pastas, 931 GB, 64.309 entradas/s |
+| C: inteiro, um logo depois do outro, nada mais rodando | parada em 300 s sem terminar: 304 mil arquivos, 1.438 entradas/s | completo em 80,6 s: 35.670 entradas/s (~25×) |
+| `C:Windows`, cache quente, um depois do outro | 43,6 s | 23 s pelo Node (16 s só o leitor), ~1,9× |
 
-Os dois leem as mesmas 137.421 entradas de arquivo e 104.846 pastas em `C:\Windows`, com o mesmo total (32,99 GB) e as mesmas 47 pastas sem acesso. A medição antes foi feita com o cache meio quente e outros processos rodando, então favorece o walker em JS. Reproduzir: `node bench/scan-bench.js C:\ 600 fast` (ou `js`).
+O tempo varia bastante com o estado do cache do disco: o mesmo walker em JS fez de 1.438 a 7.609 entradas/s, e o leitor rápido fez de 35 mil a 64 mil. Em nenhuma rodada o walker em JS terminou o C: em 300 s; o leitor rápido terminou sempre, em 45 a 81 s. Em `C:Windows`, os dois leem as mesmas 137.421 entradas de arquivo e 104.846 pastas, com o mesmo total (32,99 GB) e as mesmas 47 pastas sem acesso. Ali o ganho é menor (1,9×), porque o WinSxS tem muitos hardlinks e pastas pequenas.
+
+Reproduzir: `node bench/scan-bench.js C: 300 fast` (ou `js`).
+
+## Teste real do UAC (15/11, com a pessoa clicando)
+- "Sim": o leitor elevado leu uma pasta com permissão de leitura negada ao usuário (0 sem acesso, `admin: true`).
+- "Não": voltou `declined: true` (código 1223), sem ler nada.

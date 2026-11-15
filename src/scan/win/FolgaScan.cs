@@ -81,7 +81,7 @@ public static class FolgaScan
         bool admin = args[6] == "1";
         for (int i = 0; i < seen.Length; i++) seen[i] = new HashSet<long>();
 
-        Stream s = outPath == "-" ? Console.OpenStandardOutput() : new FileStream(outPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+        Stream s = outPath == "-" ? Console.OpenStandardOutput() : OpenOut(outPath);
         output = new StreamWriter(s, new UTF8Encoding(false), 1 << 16);
         output.NewLine = "\n";
         if (admin) EnableBackupPrivilege();
@@ -114,6 +114,29 @@ public static class FolgaScan
         Line("E\t" + status, true);
         output.Dispose();
         return 0;
+    }
+
+    // O arquivo de saída já foi criado pelo servidor. Como o leitor pode rodar elevado numa pasta
+    // gravável pelo usuário, só abre um arquivo comum que já existe: nunca segue reparse point,
+    // nunca escreve num hardlink (que poderia apontar para um arquivo do sistema).
+    static Stream OpenOut(string path)
+    {
+        var h = CreateFileW(path, 0x40000000 /* GENERIC_WRITE */, SHARE_ALL, IntPtr.Zero, OPEN_EXISTING, FLAG_OPEN_REPARSE_POINT, IntPtr.Zero);
+        if (h.IsInvalid) throw new IOException("saída inacessível: " + Marshal.GetLastWin32Error());
+        IntPtr info = Marshal.AllocHGlobal(64);
+        try
+        {
+            if (!GetFileInformationByHandleEx(h, 0 /* FileBasicInfo */, info, 40)) throw new IOException("saída: sem atributos");
+            uint attrs = (uint)Marshal.ReadInt32(info, 32);
+            if ((attrs & (ATTR_REPARSE | ATTR_DIRECTORY)) != 0) throw new IOException("saída não é um arquivo comum");
+            if (!GetFileInformationByHandleEx(h, 1 /* FileStandardInfo */, info, 24)) throw new IOException("saída: sem informações");
+            if (Marshal.ReadInt32(info, 16) != 1) throw new IOException("saída com mais de um nome (hardlink)");
+        }
+        catch { h.Dispose(); throw; }
+        finally { Marshal.FreeHGlobal(info); }
+        var fsOut = new FileStream(h, FileAccess.Write);
+        fsOut.SetLength(0);
+        return fsOut;
     }
 
     static bool ShouldCancel(string cancelPath, int pid)
