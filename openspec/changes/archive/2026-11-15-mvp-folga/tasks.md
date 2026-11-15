@@ -72,5 +72,5 @@ Branch: `feat/mvp-folga`. Ordem: P1 → (P2a ∥ P2b) → P3 → P4.
 ## Entrega
 - [x] Regressão completa (verificador).
 - [x] qa-senior e ux-ui em validação.
-- [ ] PR → merge.
-- [ ] Arquivar a change.
+- [x] PR → merge.
+- [x] Arquivar a change.
