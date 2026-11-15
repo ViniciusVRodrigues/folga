@@ -242,3 +242,18 @@ test('GET /api/clean/:id inexistente: 404; sem token: 403', async () => {
   assert.equal((await api('/api/clean/j999')).status, 404);
   assert.equal((await request(srv.port, { method: 'POST', path: '/api/clean', body: {} })).status, 403);
 });
+
+test('caminho fora de todas as raízes do item falha com outside-root e nada é apagado', async () => {
+  fillFixture();
+  const victim = path.join(base, 'victim');
+  const other = path.join(base, 'other');
+  fs.mkdirSync(victim, { recursive: true });
+  fs.mkdirSync(other, { recursive: true });
+  fs.writeFileSync(path.join(victim, 'keep.txt'), 'x');
+  srv.state.cleanup.items.set('t.outside', entry({ paths: [victim], roots: [other], method: 'trash' }));
+  const r = await post('/api/clean', { items: [{ id: 't.outside', mode: 'delete' }] });
+  const j = await job(r.json.jobId);
+  assert.equal(j.items[0].status, 'failed');
+  assert.equal(j.items[0].reason, 'outside-root');
+  assert.ok(fs.existsSync(path.join(victim, 'keep.txt')));
+});

@@ -45,7 +45,9 @@ async function collectTargets(entry, env) {
   const contents = entry.method === 'trash-contents' || entry.method === 'admin-contents';
   for (const base of entry.paths || []) {
     if (!contents) {
-      const root = (entry.roots || entry.paths).find((r) => isInside(base, r)) || base;
+      // Sem raiz que contenha o caminho, falha: nunca promover o próprio alvo a raiz.
+      const root = (entry.roots || entry.paths).find((r) => isInside(base, r));
+      if (!root) { failures.push('outside-root'); continue; }
       const c = await checkPath(base, { allowedRoot: root, env });
       if (!c.ok) { if (c.reason === 'not-found') notFound++; else if (c.reason !== 'claude-temp') failures.push(c.reason); continue; }
       targets.push({ p: base, size: (await measure([base])).size });
