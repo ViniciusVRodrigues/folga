@@ -24,7 +24,7 @@ export function toLongPath(p) {
 
 const NO_ACCESS = new Set(['EPERM', 'EACCES', 'EBUSY']);
 
-function newNode(name, p) {
+export function newNode(name, p) {
   return {
     name, path: p, size: 0, alloc: 0, files: 0, dirs: 0,
     children: [], topFiles: [], otherFiles: { count: 0, size: 0 },
@@ -34,10 +34,26 @@ function newNode(name, p) {
 }
 
 /**
- * Varre `root` em paralelo. Devolve
- * { root, index, largeFiles, files, dirs, bytes, unreadable, elapsedMs, partial }.
+ * Varre `root`. Devolve
+ * { root, index, largeFiles, files, dirs, bytes, unreadable, elapsedMs, partial, backend, admin, declined }.
+ * backend: 'auto' (leitor rápido no Windows, JS se ele não iniciar), 'fast' ou 'js'.
+ * admin: true sobe só o leitor pelo UAC (Windows); recusado, devolve { declined: true }.
  */
-export async function scanTree(root, { signal, onProgress, concurrency = 64, largeFileMin = 500 * 1024 ** 2 } = {}) {
+export async function scanTree(root, opts = {}) {
+  const { backend = 'auto', admin = false } = opts;
+  if (admin || backend === 'fast' || (backend === 'auto' && isWin)) {
+    const { scanFast, FastUnavailable } = await import('./fast.js');
+    try {
+      return await scanFast(root, opts);
+    } catch (e) {
+      if (!(e instanceof FastUnavailable) || admin || backend === 'fast') throw e;
+    }
+  }
+  return walkJs(root, opts);
+}
+
+/** Walker em JS (readdir + lstat), usado fora do Windows e como alternativa. */
+export async function walkJs(root, { signal, onProgress, concurrency = 64, largeFileMin = 500 * 1024 ** 2 } = {}) {
   const t0 = Date.now();
   const rootPath = path.resolve(root);
   const rootNode = newNode(path.basename(rootPath) || rootPath, rootPath);
@@ -149,7 +165,12 @@ export async function scanTree(root, { signal, onProgress, concurrency = 64, lar
   });
   if (timer) clearInterval(timer);
 
-  // Totais: pais antes dos filhos em `order`, então soma de trás para frente.
+  const r = finalize(rootNode, order, largeFiles);
+  return { ...r, unreadable: stats.unreadable, elapsedMs: Date.now() - t0, partial: aborted, backend: 'js', admin: false };
+}
+
+/** Fecha a árvore: corta os maiores arquivos, soma os totais (pais antes dos filhos em `order`) e indexa. */
+export function finalize(rootNode, order, largeFiles) {
   for (const n of order) {
     n.topFiles.sort((a, b) => b.size - a.size);
     if (n.topFiles.length > TOP_FILES) n.topFiles.length = TOP_FILES;
@@ -173,9 +194,5 @@ export async function scanTree(root, { signal, onProgress, concurrency = 64, lar
   const index = new Map();
   for (const n of order) index.set(pathKey(n.path), n);
 
-  return {
-    root: rootNode, index, largeFiles,
-    files: rootNode.files, dirs: rootNode.dirs, bytes: rootNode.size,
-    unreadable: stats.unreadable, elapsedMs: Date.now() - t0, partial: aborted,
-  };
+  return { root: rootNode, index, largeFiles, files: rootNode.files, dirs: rootNode.dirs, bytes: rootNode.size };
 }

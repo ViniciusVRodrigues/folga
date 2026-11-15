@@ -154,6 +154,8 @@ details > summary { cursor: pointer; min-height: 44px; display: flex; align-item
 .crumb { background: none; border: 0; color: var(--accent); font: inherit; cursor: pointer; min-height: 44px; padding: 0 6px; }
 .crumbs [aria-current] { font-weight: 600; padding: 0 6px; }
 .map-meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.admin-offer { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.admin-offer .muted { flex: 1 1 16rem; }
 .tabs { display: none; gap: 4px; margin: 6px 0; }
 .tab { flex: 1; min-height: 44px; background: var(--surface); border: 1px solid var(--border); color: var(--text); font: inherit; cursor: pointer; border-radius: 8px; }
 .tab[aria-selected="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }

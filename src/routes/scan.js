@@ -15,8 +15,17 @@ export function register(router, ctx) {
     shortcuts: platform.shortcuts(),
   }));
 
+  const canElevate = process.platform === 'win32';
+  const summary = (scanId, res, extra = {}) => ({
+    scanId, partial: !!res?.partial, files: res?.files || 0, dirs: res?.dirs || 0, bytes: res?.bytes || 0,
+    unreadable: res?.unreadable || 0, elapsedMs: res?.elapsedMs || 0, admin: !!res?.admin, ...extra,
+  });
+
   router.post('/api/scan', async ({ body }) => {
     const p = body?.path;
+    const admin = body?.admin;
+    if (admin !== undefined && typeof admin !== 'boolean') throw new HttpError(400, 'BAD_REQUEST', 'admin deve ser booleano');
+    if (admin && !canElevate) throw new HttpError(400, 'BAD_REQUEST', 'Leitura como administrador só existe no Windows');
     if (typeof p !== 'string' || !path.isAbsolute(p)) throw new HttpError(400, 'BAD_REQUEST', 'Caminho deve ser absoluto');
     let st;
     try { st = await fs.promises.stat(p); } catch { throw new HttpError(400, 'BAD_REQUEST', 'Caminho não existe'); }
@@ -25,30 +34,39 @@ export function register(router, ctx) {
 
     const scanId = 's' + (++state.seq);
     const controller = new AbortController();
-    const scan = { id: scanId, root: path.resolve(p), running: true, controller, result: null };
+    const prev = state.scan;
+    const scan = { id: scanId, root: path.resolve(p), running: true, controller, result: null, admin: !!admin };
     state.scan = scan;
-    scanTree(scan.root, {
+    // UAC recusado ou leitor elevado que falhou: a varredura anterior continua valendo
+    const restore = (extra) => {
+      if (state.scan === scan) state.scan = prev;
+      events.broadcast('scan-done', summary(scanId, prev?.result, { root: prev?.root || null, ...extra }));
+    };
+    (ctx.scanTree || scanTree)(scan.root, {
       signal: controller.signal,
       largeFileMin: ctx.largeFileMin,
+      admin: !!admin,
       onProgress: (pr) => { scan.progress = pr; events.broadcast('scan-progress', { scanId, ...pr }); },
     }).then((result) => {
+      scan.running = false;
+      if (result.declined) { restore({ declined: true }); return; }
       scan.result = result;
       scan.progress = { files: result.files, dirs: result.dirs, bytes: result.bytes, unreadable: result.unreadable, elapsedMs: result.elapsedMs };
-      scan.running = false;
-      events.broadcast('scan-done', { scanId, partial: result.partial, files: result.files, dirs: result.dirs, bytes: result.bytes, unreadable: result.unreadable, elapsedMs: result.elapsedMs });
+      events.broadcast('scan-done', summary(scanId, result));
     }).catch(() => {
       scan.running = false;
       scan.failed = true;
-      events.broadcast('scan-done', { scanId, partial: true, files: 0, dirs: 0, bytes: 0, unreadable: 0, elapsedMs: 0 });
+      if (admin) { restore({ failed: true }); return; }
+      events.broadcast('scan-done', summary(scanId, null, { partial: true, failed: true }));
     });
     return reply(202, { scanId });
   });
 
   router.get('/api/scan/status', async () => {
     const scan = state.scan;
-    if (!scan) return { state: 'idle', root: null, progress: null, partial: false };
+    if (!scan) return { state: 'idle', root: null, progress: null, partial: false, admin: false, canElevate };
     const st = scan.running ? 'running' : scan.result ? 'done' : 'idle';
-    return { state: st, root: scan.root, progress: scan.progress || null, partial: !!(scan.result?.partial) };
+    return { state: st, root: scan.root, progress: scan.progress || null, partial: !!(scan.result?.partial), admin: !!scan.admin, canElevate };
   });
 
   router.post('/api/scan/cancel', async () => {

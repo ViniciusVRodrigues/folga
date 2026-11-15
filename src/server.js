@@ -53,12 +53,12 @@ async function serveStatic(req, res, url, webRoot) {
   }
 }
 
-export async function startServer({ port = 0, host = '127.0.0.1', webRoot = DEFAULT_WEB_ROOT, token, largeFileMin, catalog, clean } = {}) {
+export async function startServer({ port = 0, host = '127.0.0.1', webRoot = DEFAULT_WEB_ROOT, token, largeFileMin, catalog, clean, scanTree } = {}) {
   token = token || crypto.randomBytes(32).toString('hex');
   const events = createEvents();
   const state = { scan: null, seq: 0 };
   const router = createRouter();
-  const ctx = { events, state, largeFileMin, catalog, clean };
+  const ctx = { events, state, largeFileMin, catalog, clean, scanTree };
   for (const register of registrars) register(router, ctx);
   router.get('/api/events', ({ req, res }) => { events.add(req, res); });
 

@@ -34,7 +34,7 @@ export function createApi(token) {
   return {
     mock: false,
     drives: () => call('GET', '/api/drives'),
-    scan: (path) => call('POST', '/api/scan', { path }),
+    scan: (path, opts = {}) => call('POST', '/api/scan', opts.admin ? { path, admin: true } : { path }),
     scanStatus: () => call('GET', '/api/scan/status'),
     cleanupStatus: () => call('GET', '/api/cleanup/status'),
     cancelScan: () => call('POST', '/api/scan/cancel', {}),
