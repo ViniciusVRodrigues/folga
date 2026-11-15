@@ -70,7 +70,7 @@ Branch: `feat/mvp-folga`. Ordem: P1 → (P2a ∥ P2b) → P3 → P4.
 - [x] 4.2 Teste do hash do script exibido contra o executado.
 
 ## Entrega
-- [ ] Regressão completa (verificador).
-- [ ] qa-senior e ux-ui em validação.
+- [x] Regressão completa (verificador).
+- [x] qa-senior e ux-ui em validação.
 - [ ] PR → merge.
 - [ ] Arquivar a change.
