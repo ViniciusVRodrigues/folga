@@ -154,3 +154,19 @@ test('o leitor não escreve num arquivo de saída que é hardlink', { skip: !isW
     assert.notEqual(code, 0);
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
 });
+
+test('leitor encerra se a pasta temporária sumiu (cancelado com o UAC já aceito)', { skip: !isWin, timeout: 60000 }, async () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'folga-fast-'));
+  try {
+    for (let i = 0; i < 5; i++) fs.mkdirSync(path.join(base, 'd' + i));
+    const gone = path.join(os.tmpdir(), 'folga-nao-existe-' + process.pid, 'cancel');
+    const lost = (s) => ps(s.replace(/'([^']*\\cancel)'/, `'${gone}'`));
+    const r = await scanFast(base, { start: lost });
+    assert.equal(r.partial, true, 'saiu como cancelado');
+  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('o PowerShell é chamado pelo caminho completo do System32', () => {
+  const s = buildElevatedWrapper('x');
+  assert.match(s, /-FilePath '[A-Za-z]:\\[^']*\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe'/i);
+});

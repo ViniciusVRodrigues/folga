@@ -331,9 +331,7 @@ function onEvent(name, d) {
     const prev = s.prev;
     ctx.state.scan = prev?.scan || { status: 'idle', path: null, rootPath: null, progress: null, partial: false, unreadable: 0, error: null, admin: false };
     ctx.state.mapPath = prev?.mapPath || null;
-    const msg = t(d.declined ? 'scan.adminDeclined' : 'scan.adminFailed');
-    toast(msg);
-    ctx.announce(msg);
+    toast(t(d.declined ? 'scan.adminDeclined' : 'scan.adminFailed')); // o toast já é role=status
     if (ctx.state.route === 'map') ctx.render();
   } else if (name === 'scan-done') {
     s.admin = !!d.admin; s.prev = null; s.status = 'done'; s.partial = !!d.partial; s.unreadable = d.unreadable || 0; s.progress = d;

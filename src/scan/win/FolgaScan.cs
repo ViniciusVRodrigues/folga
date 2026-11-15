@@ -142,6 +142,8 @@ public static class FolgaScan
     static bool ShouldCancel(string cancelPath, int pid)
     {
         if (cancelPath != "-" && File.Exists(cancelPath)) return true;
+        // a pasta temporária sumiu: o servidor desistiu (ex.: cancelou com o UAC já aceito)
+        if (cancelPath != "-" && !Directory.Exists(Path.GetDirectoryName(cancelPath))) return true;
         try { var p = Process.GetProcessById(pid); return p.HasExited; } catch { return true; }
     }
 

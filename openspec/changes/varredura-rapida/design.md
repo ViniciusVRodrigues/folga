@@ -19,6 +19,16 @@
 8. **Admin:** só o leitor sobe, por `Start-Process -Verb RunAs`. O script interno lê os bytes do .cs uma vez, confere o sha256 calculado pelo servidor e compila esses mesmos bytes. A pasta vai só em base64, nunca interpolada no script. Com admin, o leitor liga o `SeBackupPrivilege` e lê pastas protegidas sem mudar permissões. UAC recusado (código 1223) devolve `declined`, e a varredura anterior continua valendo.
 9. **Sem MFT por enquanto:** com o leitor novo, o C: inteiro leva menos de um minuto sem admin. A MFT exigiria admin sempre e um parser de formato cru e sem documentação oficial completa: risco alto para pouco ganho.
 
+## Proteções do leitor elevado e riscos que ficam
+- O PowerShell é chamado pelo caminho completo do System32. Pelo nome, o `Start-Process -Verb RunAs` procuraria antes na pasta atual.
+- A saída é aberta sem seguir reparse point e recusada se for pasta, link ou hardlink.
+- O leitor sai se a pasta temporária sumir. Isso cobre quem cancela logo depois de aceitar o UAC.
+- Ficam como risco:
+  - Trocar a pasta temporária inteira por uma junção só funciona se o alvo já tiver um `out.tsv` comum com um só link. Para fechar de vez, falta conferir o caminho final do handle (`GetFinalPathNameByHandle`).
+  - O `Add-Type` grava o compilado na pasta temporária do usuário, como em qualquer uso dele.
+  - Uma pasta que falha depois de aberta some da árvore sem contar como "sem acesso".
+  - A limpeza como admin (`src/clean/admin.js`) ainda chama `powershell.exe` pelo nome. Fica para outro cartão.
+
 ## Medição (este PC: Windows 11, C: NTFS de 953 GB, SSD NVMe)
 | Caso | Antes (walker em JS) | Depois (leitor rápido) |
 | --- | --- | --- |

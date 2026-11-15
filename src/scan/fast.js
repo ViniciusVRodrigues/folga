@@ -14,6 +14,8 @@ import { newNode, finalize, pathKey } from './walk.js';
 export const READER_PATH = fileURLToPath(new URL('./win/FolgaScan.cs', import.meta.url));
 const THREADS = 16;
 const ERROR_CANCELLED = 1223;
+// caminho completo: pelo nome, o ShellExecute do RunAs procura antes na pasta atual
+export const POWERSHELL = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
 
 /** O leitor não pôde ser iniciado (sem PowerShell, sem compilador, política): use o walker em JS. */
 export class FastUnavailable extends Error {}
@@ -48,7 +50,7 @@ export function buildElevatedWrapper(inner) {
   return [
     "$ErrorActionPreference = 'Stop'",
     'try {',
-    `  $p = Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-EncodedCommand','${encodeScript(inner)}'`,
+    `  $p = Start-Process -FilePath ${psQuote(POWERSHELL)} -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-EncodedCommand','${encodeScript(inner)}'`,
     '  exit $p.ExitCode',
     // UAC recusado: o PowerShell 5.1 põe o 1223 na exceção interna ou só na mensagem (localizada)
     '} catch {',
@@ -134,7 +136,7 @@ export function createTreeBuilder(rootPath, { largeFileMin = 500 * 1024 ** 2 } =
 }
 
 function startPowerShell(script) {
-  return spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encodeScript(script)], {
+  return spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encodeScript(script)], {
     windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'],
   });
 }
