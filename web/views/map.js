@@ -201,9 +201,10 @@ function done(ctx, root) {
           label(tl, c.name, formatBytes(c.size)));
         tileEls.push(g); svg.append(g);
       });
-      if (rest.count) svg.append(h('svg:g', { class: 'tile tile-more' }, h('svg:text', { x: 8, y: H - 8, class: 'tile-text' }, t('map.smallGrouped', { n: rest.count, size: formatBytes(rest.value) }))));
       svg.addEventListener('keydown', (e) => onKeys(tileEls, e));
       clear(svgHost).append(svg);
+      // Fora do SVG: a legenda dos itens pequenos não pode ficar por cima de um bloco.
+      if (rest.count) svgHost.append(h('p', { class: 'map-more muted' }, t('map.smallGrouped', { n: rest.count, size: formatBytes(rest.value) })));
       if (cur.active) setActive(cur.active);
     }
     function label(tl, name, size) {

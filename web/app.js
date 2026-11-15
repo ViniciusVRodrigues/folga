@@ -133,7 +133,7 @@ function renderNav() {
       h('p', { class: 'nav-heading' }, t('nav.cleanup')),
       h('ul', null, cats.map((c) => h('li', null, link('#/cat/' + c.id, 'folder', c.name, route === 'cat' && param === c.id ? 'page' : null, 'nav-sub', h('span', { class: 'num nav-size' }, formatBytes(c.size))))))),
     h('li', { class: 'only-wide' }, link('#/large', 'file', t('nav.large'), cur('large'))),
-    h('li', null, link('#/scan', 'search', t('nav.scan'), cur('scan')))));
+    h('li', null, link('#/scan', 'search', t('nav.scanShort'), cur('scan')))));
 }
 
 // ---------- barra de seleção ----------

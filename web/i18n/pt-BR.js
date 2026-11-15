@@ -11,6 +11,7 @@ export const messages = {
   'nav.cleanup': 'Limpeza',
   'nav.large': 'Arquivos grandes',
   'nav.scan': 'Varrer outra pasta',
+  'nav.scanShort': 'Varrer',
   'theme.toLight': 'Mudar para o tema claro',
   'theme.toDark': 'Mudar para o tema escuro',
 

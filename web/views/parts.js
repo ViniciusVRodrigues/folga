@@ -109,7 +109,7 @@ export function categoryRows(ctx, categories) {
 /** Faixa "Medindo… N de M" com barra. Atualizada por ctx.updateMeasure sem redesenhar a tela. */
 export function measureBanner(ctx) {
   const p = ctx.state.measure;
-  const text = h('span', { class: 'measure-text num' }, measureText(p));
+  const text = h('span', { class: 'measure-text' }, measureText(p));
   const bar = h('span', { class: 'bar', 'aria-hidden': 'true', vars: { '--pct': measureFraction(p) * 100 + '%' } }, h('span', { class: 'bar-fill' }));
   return h('div', { class: 'banner measure', 'data-measure': '', role: 'status' }, icon('refresh', 'spin'),
     h('div', { class: 'measure-body' }, text, bar, h('span', { class: 'muted small' }, t('summary.measuringHint'))));
