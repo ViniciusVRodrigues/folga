@@ -53,7 +53,8 @@ function running(ctx, root) {
   update(p);
   ctx.view.onEvent = (name, d) => { if (name === 'scan-progress') { update(d); ctx.announce(t('scan.live', { files: formatInt(d.files), bytes: formatBytes(d.bytes) })); } };
   root.append(h('div', { class: 'card scanning' },
-    h('p', { class: 'scan-title', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), t('scan.running', { path: ctx.state.scan.path || '' })),
+    h('p', { class: 'scan-title', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), t(ctx.state.scan.admin ? 'scan.runningAdmin' : 'scan.running', { path: ctx.state.scan.path || '' })),
+    ctx.state.scan.admin ? h('p', { class: 'muted small' }, t('scan.adminWait')) : null,
     h('dl', { class: 'counters' },
       h('div', null, h('dt', null, t('scan.files')), els.files), h('div', null, h('dt', null, t('scan.dirs')), els.dirs),
       h('div', null, h('dt', null, t('scan.bytes')), els.bytes), h('div', null, h('dt', null, t('scan.unreadable')), els.unread)),
@@ -103,7 +104,15 @@ function done(ctx, root) {
         h('span', { class: 'num strong' }, t('map.folderTotal', { size: formatBytes(d.size) })),
         d.partial || scan.partial ? h('span', { class: 'badge risk-medium' }, icon('alert-triangle'), t('map.partial')) : null,
         d.noAccess ? h('span', { class: 'badge risk-high' }, icon('lock'), t('map.noAccess')) : null,
-        scan.unreadable ? h('span', { class: 'muted small' }, t('map.unreadable', { n: scan.unreadable })) : null));
+        scan.unreadable ? h('span', { class: 'muted small' }, t('map.unreadable', { n: scan.unreadable })) : null,
+        scan.unreadable && ctx.state.canElevate && !scan.admin && !scan.partial ? adminOffer() : null,
+        scan.admin ? h('span', { class: 'badge' }, icon('shield'), t('map.adminRead')) : null));
+  }
+
+  function adminOffer() {
+    return h('span', { class: 'admin-offer' },
+      h('button', { class: 'btn', type: 'button', 'aria-describedby': 'admin-help', onclick: () => ctx.startScan(scan.rootPath, { admin: true }) }, icon('shield'), t('map.readAsAdmin')),
+      h('span', { id: 'admin-help', class: 'muted small' }, t('map.readAsAdminHelp')));
   }
 
   function draw() {

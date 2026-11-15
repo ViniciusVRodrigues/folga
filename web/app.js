@@ -64,8 +64,8 @@ const ctx = {
   view: {},
   state: {
     route: 'summary', param: null, cleanup: null, cleanupError: false, measure: null, drives: null, job: null,
-    scan: { status: 'idle', path: null, rootPath: null, progress: null, partial: false, unreadable: 0, error: null },
-    mapPath: null, mapView: 'list',
+    scan: { status: 'idle', path: null, rootPath: null, progress: null, partial: false, unreadable: 0, error: null, admin: false },
+    canElevate: false, mapPath: null, mapView: 'list',
   },
   announce: (m) => announcer.announce(m),
 };
@@ -243,26 +243,28 @@ ctx.syncScan = async () => {
   if (ctx.state.scan.status !== 'idle') return;
   try {
     const st = await api.scanStatus();
+    ctx.state.canElevate = !!st.canElevate;
     if (st.state === 'idle' || ctx.state.scan.status !== 'idle') return;
     ctx.state.scan = {
       status: st.state, path: st.root, rootPath: st.root, progress: st.progress, partial: !!st.partial,
-      unreadable: st.progress?.unreadable || 0, error: null,
+      unreadable: st.progress?.unreadable || 0, error: null, admin: !!st.admin,
     };
     if (ctx.state.route === 'map') ctx.render();
   } catch { /* sem estado de varredura */ }
 };
 
 // ---------- varredura ----------
-ctx.startScan = async (path) => {
+ctx.startScan = async (path, { admin = false } = {}) => {
+  const prev = { scan: ctx.state.scan, mapPath: ctx.state.mapPath };
   try {
-    await api.scan(path);
+    await api.scan(path, { admin });
   } catch (e) {
     const msg = e.code === 'SCAN_RUNNING' ? t('error.scanRunning') : e.code === 'BAD_REQUEST' ? t('error.badPath') : e.message;
     toast(msg);
     return msg;
   }
-  ctx.state.scan = { status: 'running', path, rootPath: path, progress: null, partial: false, unreadable: 0, error: null };
-  ctx.state.mapPath = null;
+  ctx.state.scan = { status: 'running', path, rootPath: path, progress: null, partial: false, unreadable: 0, error: null, admin, prev: admin ? prev : null };
+  if (!admin) ctx.state.mapPath = null;
   ctx.navigate('#/map');
   return null;
 };
@@ -324,8 +326,15 @@ ctx.drop = (meta) => { for (const id of meta.keys()) selection.remove(id); ctx.u
 function onEvent(name, d) {
   const s = ctx.state.scan;
   if (name === 'scan-progress') s.progress = d;
-  if (name === 'scan-done') {
-    s.status = 'done'; s.partial = !!d.partial; s.unreadable = d.unreadable || 0; s.progress = d;
+  if (name === 'scan-done' && (d.declined || (d.failed && s.admin))) {
+    // UAC recusado ou leitura elevada que falhou: volta ao que havia antes
+    const prev = s.prev;
+    ctx.state.scan = prev?.scan || { status: 'idle', path: null, rootPath: null, progress: null, partial: false, unreadable: 0, error: null, admin: false };
+    ctx.state.mapPath = prev?.mapPath || null;
+    toast(t(d.declined ? 'scan.adminDeclined' : 'scan.adminFailed')); // o toast já é role=status
+    if (ctx.state.route === 'map') ctx.render();
+  } else if (name === 'scan-done') {
+    s.admin = !!d.admin; s.prev = null; s.status = 'done'; s.partial = !!d.partial; s.unreadable = d.unreadable || 0; s.progress = d;
     ctx.announce(t(d.partial ? 'scan.donePartial' : 'scan.done'));
     if (ctx.state.route === 'map') ctx.render();
   }

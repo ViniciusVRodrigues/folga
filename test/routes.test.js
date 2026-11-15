@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startServer } from '../src/server.js';
+import { scanTree } from '../src/scan/walk.js';
 import { request, waitFor } from './helpers.js';
 
 const base = fs.mkdtempSync(path.join(os.tmpdir(), 'folga-routes-'));
@@ -17,7 +18,8 @@ before(async () => {
   fs.writeFileSync(path.join(base, 'a', 'f'), Buffer.alloc(4000, 1));
   fs.writeFileSync(path.join(base, 'b', 'c', 'g'), Buffer.alloc(9000, 1));
   fs.writeFileSync(path.join(base, 'b', 'big.iso'), Buffer.alloc(20000, 1));
-  srv = await startServer({ port: 0, largeFileMin: 10000 });
+  // testes de rota: o walker em JS basta (o leitor rápido tem testes próprios em walk e scan-fast)
+  srv = await startServer({ port: 0, largeFileMin: 10000, scanTree: (r, o) => scanTree(r, { ...o, backend: 'js' }) });
   const orig = srv.events.broadcast.bind(srv.events);
   srv.events.broadcast = (e, d) => { if (e === 'scan-done') done.push(d); orig(e, d); };
 });

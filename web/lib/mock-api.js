@@ -192,7 +192,7 @@ export function createMockApi({ delay = 120, adminDeclined = false } = {}) {
   let cleanup = buildCleanup(now);
   let freeC = 16 * GB;
   let binSize = 3.4 * GB;
-  let scanRoot = null, scanRootPath = null, scanPartial = false, scanTimer = null, scanCount = 0, scanState = null;
+  let scanRoot = null, scanRootPath = null, scanPartial = false, scanTimer = null, scanCount = 0, scanState = null, scanAdmin = false;
   let measuring = false, measured = false;
   const retried = new Set();
   const jobs = new Map();
@@ -209,8 +209,8 @@ export function createMockApi({ delay = 120, adminDeclined = false } = {}) {
 
   function endScan(partial) {
     clearInterval(scanTimer); scanTimer = null;
-    scanPartial = partial; scanRoot = scanState.node;
-    emit('scan-done', { scanId: scanState.id, partial, files: scanState.files, dirs: scanState.dirs, bytes: scanState.bytes, unreadable: 12, elapsedMs: scanState.ticks * 250 });
+    scanPartial = partial; scanRoot = scanState.node; scanAdmin = scanState.admin;
+    emit('scan-done', { scanId: scanState.id, partial, files: scanState.files, dirs: scanState.dirs, bytes: scanState.bytes, unreadable: scanAdmin ? 0 : 12, elapsedMs: scanState.ticks * 250, admin: scanAdmin });
     scanState = null;
   }
 
@@ -221,28 +221,33 @@ export function createMockApi({ delay = 120, adminDeclined = false } = {}) {
         { label: 'Home', path: HOME }, { label: 'Downloads', path: HOME + '\\Downloads' },
         { label: 'Documentos', path: HOME + '\\Documents' }, { label: 'GitHub', path: 'C:\\GitHub' }] });
     },
-    async scan(path) {
+    // no mock, ?uac=nao simula a recusa do UAC
+    async scan(path, { admin = false } = {}) {
       if (scanTimer) throw new ApiError('SCAN_RUNNING', 'Já existe uma varredura em andamento.', 409);
       const root = roots[String(path).slice(0, 2).toLowerCase()];
       const node = findNode(root, path);
       if (!node || node.type !== 'dir') throw new ApiError('BAD_REQUEST', 'A pasta não existe.', 400);
       const id = 's' + ++scanCount;
+      if (admin && /[?&]uac=nao/.test(location.search)) {
+        setTimeout(() => emit('scan-done', { scanId: id, declined: true, admin: true, partial: !!scanPartial }), 1200);
+        return wait({ scanId: id });
+      }
       scanRootPath = node.path;
-      scanState = { id, node, files: 0, dirs: 0, bytes: 0, ticks: 0 };
+      scanState = { id, node, files: 0, dirs: 0, bytes: 0, ticks: 0, admin };
       const total = node.size, totalFiles = Math.round(node.items * 40);
       scanTimer = setInterval(() => {
         const s = scanState; s.ticks++;
         const f = Math.min(1, s.ticks / 10);
         s.files = Math.round(totalFiles * f); s.dirs = Math.round(totalFiles * f / 9); s.bytes = Math.round(total * f);
-        emit('scan-progress', { scanId: id, files: s.files, dirs: s.dirs, bytes: s.bytes, current: node.path + '\\...\\' + ['Cache', 'node_modules', 'Packages', 'Temp'][s.ticks % 4], unreadable: f > 0.4 ? 12 : 0, elapsedMs: s.ticks * 250 });
+        emit('scan-progress', { scanId: id, files: s.files, dirs: s.dirs, bytes: s.bytes, current: node.path + '\\...\\' + ['Cache', 'node_modules', 'Packages', 'Temp'][s.ticks % 4], unreadable: f > 0.4 && !admin ? 12 : 0, elapsedMs: s.ticks * 250 });
         if (s.ticks >= 10) endScan(false);
       }, 250);
       return wait({ scanId: id });
     },
     async scanStatus() {
-      if (scanTimer) return wait({ state: 'running', root: scanRootPath, progress: null, partial: false });
-      if (scanRoot) return wait({ state: 'done', root: scanRootPath, progress: null, partial: scanPartial });
-      return wait({ state: 'idle', root: null, progress: null, partial: false });
+      if (scanTimer) return wait({ state: 'running', root: scanRootPath, progress: null, partial: false, admin: scanState.admin, canElevate: true });
+      if (scanRoot) return wait({ state: 'done', root: scanRootPath, progress: null, partial: scanPartial, admin: scanAdmin, canElevate: true });
+      return wait({ state: 'idle', root: null, progress: null, partial: false, admin: false, canElevate: true });
     },
     async cleanupStatus() { return wait({ running: measuring, progress: null, generatedAt: null, error: null }); },
     async cancelScan() { if (scanTimer) endScan(true); return { ok: true }; },

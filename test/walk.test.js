@@ -29,71 +29,77 @@ after(() => {
 
 const ceil = (n) => Math.ceil(n / 4096) * 4096;
 
-test('tamanhos exatos, alocado e ordem dos filhos; hardlink uma vez', async () => {
-  const r = await scanTree(root, { onProgress() {} });
-  const n = r.root;
-  // arquivos contados: root.txt, f1, f2, big, h1 (h2 é o mesmo inode)
-  assert.equal(n.size, 1 + 1000 + 5000 + 10000 + 3000);
-  assert.equal(n.alloc, ceil(1) + ceil(1000) + ceil(5000) + ceil(10000) + ceil(3000));
-  assert.equal(n.files, 5);
-  assert.equal(n.dirs, 2);
-  assert.deepEqual(n.children.map((c) => c.name), ['b', 'a']);
-  assert.equal(n.children[0].size, 10000);
-  assert.equal(n.children[1].size, 6000);
-  assert.equal(r.partial, false);
-  assert.equal(r.unreadable, 0);
-  const top = n.topFiles.map((f) => f.name);
-  assert.ok(top.includes('h1') !== top.includes('h2'), 'hardlink aparece uma vez');
-  assert.equal(n.topFiles[0].size, 3000);
-  assert.equal(n.otherFiles.count + n.topFiles.length, 2);
-});
+const backends = process.platform === 'win32' ? ['js', 'fast'] : ['js'];
 
-test('junction não é seguida (alvo externo não entra)', async () => {
-  const r = await scanTree(root);
-  assert.ok(r.root.size < 100000);
-  assert.ok(!r.root.children.some((c) => c.name === 'link'));
-});
+for (const backend of backends) {
+  test(`[${backend}] tamanhos exatos, alocado e ordem dos filhos; hardlink uma vez`, async () => {
+    const r = await scanTree(root, { backend,  onProgress() {} });
+    const n = r.root;
+    // arquivos contados: root.txt, f1, f2, big, h1 (h2 é o mesmo inode)
+    assert.equal(n.size, 1 + 1000 + 5000 + 10000 + 3000);
+    // js estima pelo cluster de 4 KiB; o leitor rápido usa o alocado que o sistema informa
+    if (backend === 'js') assert.equal(n.alloc, ceil(1) + ceil(1000) + ceil(5000) + ceil(10000) + ceil(3000));
+    else assert.ok(n.alloc >= 0 && n.alloc <= ceil(1) + ceil(1000) + ceil(5000) + ceil(10000) + ceil(3000) + 5 * 4096);
+    assert.equal(n.files, 5);
+    assert.equal(n.dirs, 2);
+    assert.deepEqual(n.children.map((c) => c.name), ['b', 'a']);
+    assert.equal(n.children[0].size, 10000);
+    assert.equal(n.children[1].size, 6000);
+    assert.equal(r.partial, false);
+    assert.equal(r.unreadable, 0);
+    const top = n.topFiles.map((f) => f.name);
+    assert.ok(top.includes('h1') !== top.includes('h2'), 'hardlink aparece uma vez');
+    assert.equal(n.topFiles[0].size, 3000);
+    assert.equal(n.otherFiles.count + n.topFiles.length, 2);
+  });
 
-test('arquivos grandes vão para a lista global', async () => {
-  const r = await scanTree(root, { largeFileMin: 4000 });
-  assert.deepEqual(r.largeFiles.map((f) => f.size).sort((a, b) => b - a), [10000, 5000]);
-});
+  test(`[${backend}] junction não é seguida (alvo externo não entra)`, async () => {
+    const r = await scanTree(root, { backend });
+    assert.ok(r.root.size < 100000);
+    assert.ok(!r.root.children.some((c) => c.name === 'link'));
+  });
 
-test('caminho com mais de 260 caracteres', async () => {
-  const lroot = path.join(base, 'long');
-  let p = lroot;
-  while (p.length < 300) p = path.join(p, 'd'.repeat(40));
-  fs.mkdirSync('\\\\?\\' + p, { recursive: true });
-  fs.writeFileSync('\\\\?\\' + path.join(p, 'deep.bin'), Buffer.alloc(7777, 1));
-  const r = await scanTree(lroot);
-  assert.equal(r.root.size, 7777);
-  assert.equal(r.unreadable, 0);
-  assert.equal(r.files, 1);
-});
+  test(`[${backend}] arquivos grandes vão para a lista global`, async () => {
+    const r = await scanTree(root, { backend,  largeFileMin: 4000 });
+    assert.deepEqual(r.largeFiles.map((f) => f.size).sort((a, b) => b - a), [10000, 5000]);
+  });
 
-test('signal já abortado devolve parcial', async () => {
-  const ac = new AbortController();
-  ac.abort();
-  const r = await scanTree(root, { signal: ac.signal });
-  assert.equal(r.partial, true);
-});
+  test(`[${backend}] caminho com mais de 260 caracteres`, async () => {
+    const lroot = path.join(base, 'long');
+    let p = lroot;
+    while (p.length < 300) p = path.join(p, 'd'.repeat(40));
+    fs.mkdirSync('\\\\?\\' + p, { recursive: true });
+    fs.writeFileSync('\\\\?\\' + path.join(p, 'deep.bin'), Buffer.alloc(7777, 1));
+    const r = await scanTree(lroot, { backend });
+    assert.equal(r.root.size, 7777);
+    assert.equal(r.unreadable, 0);
+    assert.equal(r.files, 1);
+  });
 
-test('aborto no meio devolve rápido', async () => {
-  const many = path.join(base, 'many');
-  for (let i = 0; i < 300; i++) {
-    fs.mkdirSync(path.join(many, 'd' + i), { recursive: true });
-    w(path.join(many, 'd' + i, 'x'), 10);
-  }
-  const ac = new AbortController();
-  const t0 = Date.now();
-  setImmediate(() => ac.abort());
-  const r = await scanTree(many, { signal: ac.signal });
-  assert.ok(Date.now() - t0 < 1000);
-  assert.equal(typeof r.partial, 'boolean');
-});
+  test(`[${backend}] signal já abortado devolve parcial`, async () => {
+    const ac = new AbortController();
+    ac.abort();
+    const r = await scanTree(root, { backend,  signal: ac.signal });
+    assert.equal(r.partial, true);
+  });
 
-test('pasta inexistente conta como não lida, sem estourar', async () => {
-  const r = await scanTree(path.join(base, 'nao-existe'));
-  assert.equal(r.unreadable, 1);
-  assert.equal(r.root.noAccess, true);
-});
+  test(`[${backend}] aborto no meio devolve rápido`, async () => {
+    const many = path.join(base, 'many');
+    for (let i = 0; i < 300; i++) {
+      fs.mkdirSync(path.join(many, 'd' + i), { recursive: true });
+      w(path.join(many, 'd' + i, 'x'), 10);
+    }
+    const ac = new AbortController();
+    const t0 = Date.now();
+    setImmediate(() => ac.abort());
+    const r = await scanTree(many, { backend,  signal: ac.signal });
+    assert.ok(Date.now() - t0 < 1000);
+    assert.equal(typeof r.partial, 'boolean');
+  });
+
+  test(`[${backend}] pasta inexistente conta como não lida, sem estourar`, async () => {
+    const r = await scanTree(path.join(base, 'nao-existe'), { backend });
+    assert.equal(r.unreadable, 1);
+    assert.equal(r.root.noAccess, true);
+  });
+}
