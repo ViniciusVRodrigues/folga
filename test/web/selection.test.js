@@ -48,3 +48,10 @@ test('item médio exige confirmação explícita', () => {
   assert.equal(canConfirm(model, false), false);
   assert.equal(canConfirm(model, true), true);
 });
+test('item permanente leva confirmPermanent no pedido', () => {
+  const item = { id: 'x.perm', name: 'X', size: 1, risk: 'low', action: 'clean', needsAdmin: false, permanent: true, regenerable: true, paths: ['C:/x'] };
+  const idx = indexItems([{ id: 'c', name: 'C', items: [item] }]);
+  const sel = createSelection();
+  sel.replace(['x.perm']);
+  assert.deepEqual(buildRequest(sel, idx), [{ id: 'x.perm', mode: 'trash', confirmPermanent: true }]);
+});

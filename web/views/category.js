@@ -1,7 +1,7 @@
 import { h, icon } from '../lib/dom.js';
 import { t } from '../i18n/index.js';
 import { formatBytes, formatRelative } from '../lib/format.js';
-import { itemCard, riskBadge, guidedActions, stepsDetails, detailsBlock, lastUsedLine } from './parts.js';
+import { measureBanner, itemCard, riskBadge, guidedActions, stepsDetails, detailsBlock, lastUsedLine } from './parts.js';
 import { isSelectable } from '../lib/selection.js';
 
 export function renderCategory(ctx, id) {
@@ -9,6 +9,7 @@ export function renderCategory(ctx, id) {
   const root = h('section', { class: 'view', 'aria-labelledby': 'view-title' });
   if (!cat) {
     root.append(h('h1', { id: 'view-title', tabindex: '-1' }, t(ctx.state.cleanup ? 'category.empty' : 'summary.loading')));
+    if (!ctx.state.cleanup) root.append(measureBanner(ctx));
     root.append(h('a', { class: 'btn', href: '#/summary' }, t('nav.summary')));
     return root;
   }

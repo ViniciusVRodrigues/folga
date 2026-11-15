@@ -5,7 +5,8 @@ import { formatBytes } from '../lib/format.js';
 
 const REASON_KEY = {
   'in-use': k('reason.in-use'), 'access-denied': k('reason.access-denied'), 'not-found': k('reason.not-found'),
-  'too-deep': k('reason.too-deep'), 'admin-declined': k('reason.admin-declined'),
+  'too-deep': k('reason.too-deep'), 'admin-declined': k('reason.admin-declined'), protected: k('reason.protected'), reparse: k('reason.reparse'),
+  'outside-root': k('reason.outside-root'), 'would-be-permanent': k('reason.would-be-permanent'), 'command-failed': k('reason.command-failed'), timeout: k('reason.timeout'),
 };
 const STATUS_KEY = { pending: k('clean.status.pending'), running: k('clean.status.running'), done: k('clean.status.done'), failed: k('clean.status.failed'), skipped: k('clean.status.skipped') };
 const STATUS_ICON = { pending: 'info', running: 'refresh', done: 'check-circle', failed: 'octagon-x', skipped: 'alert-triangle' };
@@ -35,7 +36,7 @@ function renderRunning(ctx, root, job) {
     clear(list);
     for (const [id, m] of entries) {
       const st = job.status.get(id)?.status || 'pending';
-      list.append(h('li', { class: 'prog prog-' + st }, icon(STATUS_ICON[st], st === 'running' ? 'spin' : ''), h('span', { class: 'prog-name' }, m.name), h('span', { class: 'muted small' }, t(STATUS_KEY[st]))));
+      list.append(h('li', { class: 'prog prog-' + st }, icon(STATUS_ICON[st], st === 'running' ? 'spin' : ''), h('span', { class: 'prog-name' }, m.name, m.project ? h('span', { class: 'muted small prog-project' }, ' · ' + m.project) : null), h('span', { class: 'muted small' }, t(STATUS_KEY[st]))));
     }
     const adminLeft = entries.filter(([, m]) => m.needsAdmin).some(([id]) => ['pending', 'running'].includes(job.status.get(id)?.status || 'pending'));
     const normalLeft = entries.filter(([, m]) => !m.needsAdmin).some(([id]) => ['pending', 'running'].includes(job.status.get(id)?.status || 'pending'));
@@ -73,7 +74,7 @@ async function finish(ctx, job) {
 
 function renderResult(ctx, root, job) {
   const r = job.result;
-  const failed = r.items.filter((i) => i.status === 'failed');
+  const failed = r.items.filter((i) => i.status === 'failed' && i.reason !== 'admin-declined');
   const skippedAdmin = r.items.filter((i) => i.reason === 'admin-declined');
   const nameOf = (id) => job.meta.get(id)?.name || id;
   root.append(h('h1', { id: 'view-title', tabindex: '-1' }, t('clean.doneTitle')));
@@ -83,16 +84,21 @@ function renderResult(ctx, root, job) {
     h('ul', { class: 'result-split' },
       h('li', null, icon('trash'), h('span', null, t('clean.toBin')), h('span', { class: 'num' }, formatBytes(r.movedToBin))),
       h('li', null, icon('flame'), h('span', null, t('clean.deleted')), h('span', { class: 'num' }, formatBytes(r.deletedPermanently)))),
-    r.drive ? h('p', { class: 'num' }, t('clean.freeNow', { drive: r.drive.root.slice(0, 2), free: formatBytes(r.drive.free) })) : null));
+    r.drive?.root ? h('p', { class: 'num' }, t('clean.freeNow', { drive: r.drive.root.slice(0, 2), free: formatBytes(r.drive.free) })) : null));
   if (r.movedToBin > 0 && !job.binEmptied) {
     root.append(h('div', { class: 'card' }, h('p', null, t('clean.binHint', { size: formatBytes(r.movedToBin) })),
       h('button', { class: 'btn', type: 'button', onclick: (e) => ctx.emptyBin(e.currentTarget, job) }, icon('trash'), t('item.emptyBin'))));
   }
   if (job.binEmptied) root.append(h('p', { class: 'banner', role: 'status' }, icon('check-circle'), h('span', null, t('clean.binEmptied', { size: formatBytes(job.binEmptied) }))));
   if (skippedAdmin.length) root.append(h('p', { class: 'banner banner-warn', role: 'status' }, icon('alert-triangle'), h('span', null, t('clean.adminDeclined'))));
+  const partial = r.items.filter((i) => i.status === 'done' && i.reason);
+  if (partial.length) {
+    root.append(h('h2', null, t('clean.partial', { n: partial.length })),
+      h('ul', { class: 'progress-list' }, partial.map((f) => h('li', { class: 'prog prog-skipped' }, icon('alert-triangle'), h('span', { class: 'prog-name' }, nameOf(f.itemId)), h('span', { class: 'muted small' }, reasonText(f.reason))))));
+  }
   if (failed.length) {
     root.append(h('h2', null, t('clean.failures', { n: failed.length })),
-      h('ul', { class: 'progress-list' }, failed.map((f) => h('li', { class: 'prog prog-failed' }, icon('octagon-x'), h('span', { class: 'prog-name' }, nameOf(f.itemId)), h('span', { class: 'muted small' }, reasonText(f.reason))))),
+      h('ul', { class: 'progress-list' }, failed.map((f) => h('li', { class: 'prog prog-failed' }, icon('octagon-x'), h('span', { class: 'prog-name' }, nameOf(f.itemId), job.meta.get(f.itemId)?.project ? h('span', { class: 'muted small' }, ' · ' + job.meta.get(f.itemId).project) : null), h('span', { class: 'muted small' }, reasonText(f.reason))))),
       h('button', { class: 'btn btn-primary', type: 'button', onclick: () => ctx.retry(failed.map((f) => f.itemId), job) }, icon('refresh'), t('clean.retry')));
   }
   root.append(h('p', null, h('a', { class: 'btn', href: '#/summary' }, t('clean.back'))));

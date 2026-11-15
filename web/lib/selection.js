@@ -80,7 +80,7 @@ export function buildModel(selection, categories) {
     for (const item of c.items || []) {
       if (!selection.has(item.id) || !isSelectable(item)) continue;
       count++; total += item.size || 0;
-      if (item.risk === 'medium') needsAck = true;
+      if (item.risk === 'medium' || isPermanent(selection, item)) needsAck = true;
       const line = {
         item,
         mode: modeOf(selection, item),
@@ -108,7 +108,10 @@ export function buildRequest(selection, index) {
   for (const id of selection.ids()) {
     const e = index.get(id);
     if (!e || !isSelectable(e.item)) continue;
-    items.push({ id, mode: modeOf(selection, e.item) });
+    const x = { id, mode: modeOf(selection, e.item) };
+    // o modal já avisou "Apaga de vez"; sem isso o servidor recusa (would-be-permanent)
+    if (isPermanent(selection, e.item)) x.confirmPermanent = true;
+    items.push(x);
   }
   return items;
 }

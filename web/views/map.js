@@ -25,6 +25,7 @@ export function renderMap(ctx) {
 }
 
 function idle(ctx, root) {
+  const scan = ctx.state.scan;
   const sys = (ctx.state.drives?.drives || []).find((d) => d.system);
   root.append(h('div', { class: 'card empty' },
     h('p', null, t('map.idle')),
@@ -70,13 +71,16 @@ function done(ctx, root) {
   let mounted = true;
   ctx.cleanups.push(() => { mounted = false; });
 
-  async function load(path, focusTitle) {
+  let firstLoad = true;
+  async function load(path) {
     try {
       const data = await ctx.api.tree(path, LIMIT);
       if (!mounted) return;
       cur.data = data; cur.path = data.path; ctx.state.mapPath = data.path; cur.active = null;
       draw();
-      if (focusTitle) root.querySelector('.map-pane, .list-pane')?.focus?.();
+      // depois de entrar ou subir (teclado ou clique), o foco vai para o item ativo da nova pasta
+      if (!firstLoad) (cur.view === 'map' ? body.querySelector('g.tile[tabindex="0"]') : body.querySelector('.row[tabindex="0"]'))?.focus({ preventScroll: true });
+      firstLoad = false;
     } catch (e) {
       if (!mounted) return;
       if (e.code === 'NO_SCAN') { scan.status = 'idle'; ctx.render(); return; }

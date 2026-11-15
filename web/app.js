@@ -1,8 +1,10 @@
 import { createApi } from './lib/api.js';
 import { createMockApi } from './lib/mock-api.js';
-import { h, icon, clear } from './lib/dom.js';
+import { h, icon, clear, append } from './lib/dom.js';
 import { t } from './i18n/index.js';
 import { formatBytes } from './lib/format.js';
+import { measureFraction } from './lib/measure.js';
+import { measureText } from './views/parts.js';
 import { createSelection, indexItems, selectionTotals } from './lib/selection.js';
 import { createAnnouncer } from './lib/live.js';
 import { renderSummary, renderCleanupHome } from './views/summary.js';
@@ -61,7 +63,7 @@ const ctx = {
   cleanups: [],
   view: {},
   state: {
-    route: 'summary', param: null, cleanup: null, cleanupError: false, drives: null, job: null,
+    route: 'summary', param: null, cleanup: null, cleanupError: false, measure: null, drives: null, job: null,
     scan: { status: 'idle', path: null, rootPath: null, progress: null, partial: false, unreadable: 0, error: null },
     mapPath: null, mapView: 'list',
   },
@@ -110,10 +112,10 @@ function onRoute() {
 // ---------- navegação ----------
 function renderTop() {
   const dark = effectiveTheme() === 'dark';
-  clear(topEl).append(
+  append(clear(topEl), [
     h('span', { class: 'brand' }, icon('broom'), t('app.name')),
     api?.mock ? h('span', { class: 'badge risk-medium mock-badge' }, t('app.mock')) : null,
-    h('button', { class: 'btn btn-icon', type: 'button', onclick: toggleTheme, 'aria-label': t(dark ? 'theme.toLight' : 'theme.toDark') }, icon(dark ? 'sun' : 'moon')));
+    h('button', { class: 'btn btn-icon', type: 'button', onclick: toggleTheme, 'aria-label': t(dark ? 'theme.toLight' : 'theme.toDark') }, icon(dark ? 'sun' : 'moon'))]);
 }
 
 function renderNav() {
@@ -148,21 +150,72 @@ ctx.updateSelBar = () => {
 ctx.openModal = (origin) => openCleanModal(ctx, origin);
 
 // ---------- dados ----------
-ctx.refreshCleanup = async (remeasure = false, silent = false) => {
+// O servidor só entrega o catálogo quando termina de medir (GET dá 409 NO_SCAN antes disso).
+// Por isso: pedimos a medição (POST refresh), mostramos "Medindo… N de M" pelos eventos
+// cleanup-progress e buscamos o resultado em cleanup-done (com um sondador de reserva).
+let measurePoll = null;
+function stopMeasurePoll() { clearInterval(measurePoll); measurePoll = null; }
+
+ctx.updateMeasure = () => {
+  const p = ctx.state.measure;
+  for (const el of mainEl.querySelectorAll('[data-measure]')) {
+    el.querySelector('.measure-text').textContent = measureText(p);
+    el.querySelector('.bar').style.setProperty('--pct', measureFraction(p) * 100 + '%');
+  }
+  if (p?.total) ctx.announce(measureText(p));
+};
+
+async function loadCleanup(silent) {
   try {
-    if (remeasure) await api.cleanupRefresh();
     const d = await api.cleanup();
     ctx.state.cleanup = d;
     ctx.state.cleanupError = false;
     ctx.index = indexItems(d.categories);
     selection.reconcile(ctx.index);
-  } catch {
-    if (!silent) ctx.state.cleanupError = true;
+    return d;
+  } catch (e) {
+    if (!silent && e.code !== 'NO_SCAN') ctx.state.cleanupError = true;
+    return null;
   }
+}
+
+function paintCleanup() {
   ctx.updateSelBar();
   if (['summary', 'cleanup', 'cat'].includes(ctx.state.route)) ctx.render();
   else renderNav();
+}
+
+ctx.refreshCleanup = async (remeasure = false, silent = false) => {
+  if (remeasure) {
+    if (ctx.state.measure) return;
+    try {
+      await api.cleanupRefresh();
+    } catch {
+      if (!silent) { ctx.state.cleanupError = true; paintCleanup(); }
+      return;
+    }
+    ctx.state.cleanupError = false;
+    ctx.state.measure = { done: 0, total: 0 };
+    stopMeasurePoll();
+    measurePoll = setInterval(async () => {
+      const d = await loadCleanup(true);
+      if (d && !d.categories.some((c) => c.scanning)) finishMeasure();
+    }, 5000);
+    paintCleanup();
+    return;
+  }
+  await loadCleanup(silent);
+  paintCleanup();
 };
+
+async function finishMeasure() {
+  if (!ctx.state.measure) return;
+  stopMeasurePoll();
+  ctx.state.measure = null;
+  await loadCleanup(false);
+  if (!ctx.state.cleanup) ctx.state.cleanupError = true;
+  paintCleanup();
+}
 
 ctx.refreshDrives = async () => {
   try { ctx.state.drives = await api.drives(); } catch { /* sem unidades */ }
@@ -222,7 +275,7 @@ ctx.startClean = async (items) => {
   const meta = new Map();
   for (const x of items) {
     const e = ctx.index.get(x.id);
-    if (e) meta.set(x.id, { name: e.item.name, size: e.item.size, mode: x.mode, needsAdmin: e.item.needsAdmin });
+    if (e) meta.set(x.id, { name: e.item.name, project: e.item.project && !e.item.name.includes(e.item.project.name) ? e.item.project.name : null, size: e.item.size, mode: x.mode, needsAdmin: e.item.needsAdmin });
   }
   try {
     const r = await api.clean(items);
@@ -246,7 +299,8 @@ function onEvent(name, d) {
     ctx.announce(t(d.partial ? 'scan.donePartial' : 'scan.done'));
     if (ctx.state.route === 'map') ctx.render();
   }
-  if (name === 'cleanup-done') ctx.refreshCleanup(false, true);
+  if (name === 'cleanup-progress' && ctx.state.measure) { ctx.state.measure = { done: d.done, total: d.total }; ctx.updateMeasure(); }
+  if (name === 'cleanup-done') { if (ctx.state.measure) finishMeasure(); else ctx.refreshCleanup(false, true); }
   ctx.view.onEvent?.(name, d);
 }
 
@@ -265,7 +319,8 @@ function start() {
   ctx.render();
   ctx.updateSelBar();
   ctx.refreshDrives();
-  ctx.refreshCleanup();
+  // mostra o que o servidor já tem (se tiver) e pede uma medição nova por cima
+  ctx.refreshCleanup(false, true).then(() => ctx.refreshCleanup(true));
 }
 
 start();

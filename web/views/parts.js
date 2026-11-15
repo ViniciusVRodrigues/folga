@@ -1,4 +1,5 @@
 // Peças compartilhadas pelas telas: selo de risco, card de item, lista de categorias.
+import { measureFraction } from '../lib/measure.js';
 import { h, icon } from '../lib/dom.js';
 import { t, k } from '../i18n/index.js';
 import { formatBytes, formatRelative, middleEllipsis } from '../lib/format.js';
@@ -103,4 +104,17 @@ export function categoryRows(ctx, categories) {
       c.counts.safe ? h('span', { class: 'chip chip-safe' }, icon('check-circle'), t('chip.safe', { n: c.counts.safe })) : null,
       c.counts.admin ? h('span', { class: 'chip chip-admin' }, icon('shield'), t('chip.admin', { n: c.counts.admin })) : null,
       c.counts.decision ? h('span', { class: 'chip chip-decision' }, icon('alert-triangle'), t('chip.decision', { n: c.counts.decision })) : null))));
+}
+
+/** Faixa "Medindo… N de M" com barra. Atualizada por ctx.updateMeasure sem redesenhar a tela. */
+export function measureBanner(ctx) {
+  const p = ctx.state.measure;
+  const text = h('span', { class: 'measure-text num' }, measureText(p));
+  const bar = h('span', { class: 'bar', 'aria-hidden': 'true', vars: { '--pct': measureFraction(p) * 100 + '%' } }, h('span', { class: 'bar-fill' }));
+  return h('div', { class: 'banner measure', 'data-measure': '', role: 'status' }, icon('refresh', 'spin'),
+    h('div', { class: 'measure-body' }, text, bar, h('span', { class: 'muted small' }, t('summary.measuringHint'))));
+}
+
+export function measureText(p) {
+  return p && p.total ? t('summary.measuring', { done: p.done, total: p.total }) : t('summary.loading');
 }

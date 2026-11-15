@@ -193,6 +193,7 @@ export function createMockApi({ delay = 120, adminDeclined = false } = {}) {
   let freeC = 16 * GB;
   let binSize = 3.4 * GB;
   let scanRoot = null, scanRootPath = null, scanPartial = false, scanTimer = null, scanCount = 0, scanState = null;
+  let measuring = false, measured = false;
   const retried = new Set();
   const jobs = new Map();
   let jobCount = 0;
@@ -268,8 +269,17 @@ export function createMockApi({ delay = 120, adminDeclined = false } = {}) {
       ].filter((f) => f[1] >= min).map(([path, size, ext, age]) => ({ path, size, ext, mtime: new Date(now - age * DAY).toISOString() }));
       return wait({ files });
     },
-    async cleanupRefresh() { cleanup = cleanup.slice(); return { ok: true }; },
+    // Igual ao servidor real: 202 na hora; progresso por evento; GET só depois de medir (antes: 409 NO_SCAN).
+    async cleanupRefresh() {
+      if (measuring) return wait({});
+      measuring = true;
+      const total = 14;
+      for (let i = 1; i <= total; i++) setTimeout(() => emit('cleanup-progress', { category: 'dev', done: i, total }), i * 120);
+      setTimeout(() => { measuring = false; measured = true; emit('cleanup-done', {}); }, total * 120 + 100);
+      return wait({});
+    },
     async cleanup() {
+      if (!measured) throw new ApiError('NO_SCAN', 'O catálogo ainda não foi medido. Chame POST /api/cleanup/refresh.', 409);
       const cats = visible();
       let safeNow = 0, needsDecision = 0;
       const out = cats.map((c) => {
@@ -286,7 +296,7 @@ export function createMockApi({ delay = 120, adminDeclined = false } = {}) {
         generatedAt: new Date().toISOString(), drive: { root: 'C:\\', total: 953 * GB, free: freeC },
         summary: { safeNow, needsDecision },
         checked: ['NVIDIA', 'AMD', 'Steam', 'Chrome', 'Edge', 'Docker', 'Discord', 'VS Code', 'npm'],
-        categories: out,
+        categories: out.map((c) => ({ ...c, scanning: measuring })),
       });
     },
     async open(itemId, kind) {
